@@ -1,10 +1,10 @@
-===============================
+========
 PodFetch
-===============================
+========
 
 .. image:: https://badge.fury.io/py/podfetch.png
     :target: http://badge.fury.io/py/podfetch
-    
+
 .. image:: https://travis-ci.org/akeil/podfetch.png?branch=master
         :target: https://travis-ci.org/akeil/podfetch
 
@@ -20,4 +20,6 @@ Fetch audio podcasts and store files locally.
 Features
 --------
 
-* TODO
+ *  Download all podcasts with a single command
+    useful for cron-jobs
+ *  Use hooks to execute additional commands after downloading new episodes.
