@@ -60,8 +60,7 @@ def main(argv=None):
 
     log.info('Starting.')
     try:
-        run(args, cfg)
-        rv = EXIT_OK
+        rv = run(args, cfg)
     except KeyboardInterrupt:
         raise
     except Exception as e:
@@ -76,7 +75,21 @@ def main(argv=None):
 
 
 def run(args, cfg):
-    pass
+    try:
+        subscriptions_dir = cfg.get('default', 'subscriptions_dir')
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        subscriptions_dir = os.path.expanduser( os.path.join(
+            '~', '.config', 'podfetch', 'subscriptions'))
+
+    try:
+        content_dir = cfg.get('default', 'content_dir')
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        content_dir = os.path.expanduser( os.path.join(
+            '~', '.local', 'share', 'podfetch', 'content'))
+
+    log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
+    log.info('Download audio files to {!r}.'.format(content_dir))
+    return application.fetch_all(subscriptions_dir, content_dir)
 
 
 def setup_argparser():
@@ -167,7 +180,7 @@ def read_config(extra_config_paths=None, require=False):
         Additional locations to be scanned for config files.
     :param bool require:
         If *True*, raise an error if no config file was found.
-        Defaults to *False*. 
+        Defaults to *False*.
     :rtype ConfigParser:
         A ``ConfigParser`` with the values read from the
         configuration file(s).
@@ -190,7 +203,7 @@ def read_config(extra_config_paths=None, require=False):
 def configure_logging(quiet=False, verbose=False,
     logfile=None, log_level=DEFAULT_LOG_LEVEL):
     '''Configure log-level and logging handlers.
-    
+
     :param bool quiet:
         If *True*, do not configure a console handler.
         Defaults to *False*.
