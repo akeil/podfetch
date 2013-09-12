@@ -252,6 +252,51 @@ class Podfetch(object):
                 log.info('Delete episode {!r}'.format(path))
                 os.unlink(path)
 
+import subprocess
+import shlex
+
+class HookManager(object):
+
+    def __init__(self, config_dir):
+        hooks = (
+            'item_downloaded',
+            'subscription_updated',
+        )
+        self.hook_dirs = {
+            hook: os.path.join(config_dir, hook)
+            for hook in hooks
+        }
+
+    def run_hooks(self, event):
+        for hook_executable in self.discover_hooks(event):
+            self._run_one_hook(hook_executable)
+
+    def _run_one_hook(self, executable):
+        exit_code = subprocess.call(executable, shell=True)
+
+    def discover_hooks(self, event):
+        hooks_dir = self.hook_dirs[event]
+        try:
+            hooks = os.listdir(hooks_dir)
+        except OSError as e:
+            if e.errno != os.errno.ENOENT:
+                raise
+
+        def is_executable(path):
+            # must check if it is a file
+            # directories max also be "executable"
+            return os.path.isfile(path) and os.access(path, os.X_OK)
+
+        for name in hooks:
+            path = os.path.join(hooks_dir, name)
+            if is_executable(path):
+                log.debug('Found hook {!r}.'.format(name))
+                yield path
+            else:
+                log.warning((
+                    'File {!r} in hooks dir {!r} is not executable'
+                    ' and will not be run.').format(name, hooks_dir))
+
 
 def name_from_url(url):
     '''Derive a subscription name from a URL.
