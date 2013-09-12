@@ -109,6 +109,7 @@ class Podfetch(object):
         log.info('Update subscription {!r}.'.format(subscription.name))
         feed = feedparser.parse(subscription.feed_url)
         error_count = 0
+        # TODO do not fetch more than subscription.max_episodes
         for entry in feed.entries:
             try:
                 self._process_entry(subscription.name, entry)
@@ -117,6 +118,7 @@ class Podfetch(object):
                     ' Error was: {e}').format(n=subscription.name, e=e))
                 error_count += 1
 
+        self.purge_one(subscription)
         # run hooks for feed downloaded
         # the list of downloaded files in the hook
         # skip if nothing was fetched.
