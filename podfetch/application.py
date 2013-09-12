@@ -309,7 +309,7 @@ def download(download_url, dst_path):
     __, tempdst = tempfile.mkstemp()
     try:
         urlretrieve(download_url, tempdst)
-        os.rename(tempdst, dst_path)
+        shutil.move(tempdst, dst_path)
     finally:
         try:
             os.unlink(tempdst)
