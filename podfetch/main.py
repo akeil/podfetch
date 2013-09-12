@@ -299,7 +299,7 @@ def read_config(extra_config_paths=None, require=False):
 
 
 def configure_logging(quiet=False, verbose=False,
-    logfile=None, log_level=DEFAULT_LOG_LEVEL):
+    logfile=None, log_level=logging.WARNING):
     '''Configure log-level and logging handlers.
 
     :param bool quiet:
