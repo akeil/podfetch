@@ -7,18 +7,22 @@ Command line
 
 Update all podcasts::
 
-    $ podfetch all
+    $ podfetch fetch
 
 Update selected podcasts::
 
-    $ podfetch podcast_name
+    $ podfetch fetch podcast_name
 
 or::
 
-    $ podfetch podcast_name another_podcast
+    $ podfetch fetch podcast_name another_podcast
 
-Add Podcasts
-============
+If used as a **cron job**::
+
+    podfetch --quiet --logfile syslog fetch
+
+Managing Subscriptions
+======================
 
 To add a new podcast::
 
@@ -29,15 +33,13 @@ To specify the name explicitly::
 
     $ podfetch add http://example.com/rss --name my_name
 
-More involved::
-
-    $ podfetch add http://example.com/rss --name my_name --history 12
-
-Keeps at most 12 episodes
-
-To remove::
+To remove a subscription::
 
     $podfetch remove podcast_name
+
+To see a list of all subscriptions::
+
+    $ podfetch ls
 
 Python
 ######
