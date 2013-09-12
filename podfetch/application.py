@@ -107,29 +107,97 @@ class Podfetch(object):
             authentication failure
         '''
         log.info('Update subscription {!r}.'.format(subscription.name))
-        feed = feedparser.parse(subscription.feed_url)
+
+        cache_dir = os.path.expanduser(
+            os.path.join('~', '.cache', 'podfetch'))
+        etag_path = os.path.join(
+            cache_dir, '{}.etag'.format(subscription.name))
+        modified_path = os.path.join(
+            cache_dir, '{}.modified'.format(subscription.name))
+
+        def read(path):
+            try:
+                with open(path) as f:
+                    return f.read()
+            except OSError as e:
+                if e.errno == os.errno.ENOENT:
+                    return None
+                else:
+                    raise
+
+        etag = read(etag_path)
+        modified = read(modified_path)
+
+        feed = feedparser.parse(subscription.feed_url,
+            etag=etag, modified=modified)
+
+        HTTP_PERMANENT_REDIRECT = 301
+        HTTP_GONE = 410
+        HTTP_NOT_FOUND = 404
+        if feed.status == 304:
+            # we submitted an etag/modified
+            log.info('Feed is unchanged.')
+            return OK
+        elif feed.status == HTTP_GONE:
+            # TODO more specific error class
+            # and handle ...somewhere
+            raise ValueError('Feed is GONE.')
+        elif feed.status == HTTP_NOT_FOUND:
+            raise ValueError('Feed does not exist.')
+        # TODO AuthenticationFailure
+        elif feed.status == HTTP_PERMANENT_REDIRECT:
+            log.info('Received status 301, change url for subscription.')
+            new_url = feed.href
+            subscription.feed_url = new_url
+            subscription.save()
+
         error_count = 0
-        # TODO do not fetch more than subscription.max_episodes
-        for entry in feed.entries:
+        for index, entry in enumerate(feed.entries):
             try:
                 self._process_entry(subscription.name, entry)
+                num_processed = index + 1
+                if num_processed == subscription.max_episodes:
+                    break
             except Exception as e:
                 log.error(('Failed to fetch entry for feed {n!r}.'
                     ' Error was: {e}').format(n=subscription.name, e=e))
                 error_count += 1
 
-        self.purge_one(subscription)
+        self.purge_one(subscription.name)
         # run hooks for feed downloaded
         # the list of downloaded files in the hook
         # skip if nothing was fetched.
 
         if error_count:
             if error_count == num_items:
-                return ALL_ITEMS_FAILED
+                rv = ALL_ITEMS_FAILED
             else:
-                return SOME_ITEMS_FAILED
+                rv = SOME_ITEMS_FAILED
         else:
-            return OK
+            rv = OK
+
+        # write etag and or modified info _after_ the feed
+        # was successfully processed.
+        def write(content, path):
+            if content:
+                require_directory(os.path.dirname(path))
+                try:
+                    with open(path, 'w') as f:
+                        f.write(content)
+                except OSError as e:
+                    log.error(e)
+            else:
+                try:
+                    os.unlink(path)
+                except OSError as e:
+                    if e.errno != os.errno.ENOENT:
+                        raise
+
+        if rv == OK:
+            write(feed.get('etag'), etag_path)
+            write(feed.get('modified'), modified_path)
+
+        return rv
 
     def _process_entry(self, feed_name, entry):
         '''Process a single feed entry.
