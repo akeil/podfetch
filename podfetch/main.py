@@ -279,6 +279,31 @@ def setup_command_parsers(parent_parser):
         return 0
     add.set_defaults(func=do_add)
 
+    # purge --------------------------------------------------------------------
+    purge = subs.add_parser(
+        'purge',
+        #parents=[parent_parser,],
+        help='Remove old downloaded episodes.'
+    )
+
+    purge.add_argument(
+        'subscription_names',
+        nargs='?',
+        help=('The names of the subscriptions to be purged.'
+            ' If no name is given, all subscriptions are purged'),
+    )
+
+    def do_purge(app, args):
+        if not args.subscription_names:
+            for subscription in app.iter_subscriptions():
+                app.purge_one(subscription.name)
+        else:
+            for subscription in app.iter_subscriptions():
+                if subscription.name in args.subscription_names:
+                    app.purge_one(subscription.name)
+
+    purge.set_defaults(func=do_purge)
+
 
 def read_config(extra_config_paths=None, require=False):
     '''Read configuration from the ``DEFAULT_CONFIG_PATH and
