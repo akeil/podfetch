@@ -41,6 +41,29 @@ To see a list of all subscriptions::
 
     $ podfetch ls
 
+Hooks
+=====
+*Hooks* are executable files (scripts) placed in specific directories.
+The hooks are executed on specific events:
+
+episode downloaded
+------------------
+Invoked after a single episode has been downloaded successfully.
+
+    Context:
+    name
+    content_dir
+    filename
+
+subscription updated
+--------------------
+Runs after one ore more episodes were downloaded for a subscription.
+
+    Context:
+    name
+    content_dir
+    filenames
+
 Python
 ######
 
