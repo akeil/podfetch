@@ -4,11 +4,18 @@ Main application module.
 '''
 import os
 import shutil
+import tempfile
 import logging
+
 try:
     from urllib.parse import urlparse  # python 3.x
 except ImportError:
     from urlparse import urlparse  # python 2.x
+
+try:
+    from urllib.request import urlretrieve  # python 3.x
+except ImportError:
+    from urllib import urlretrieve  # python 2.x
 
 import feedparser
 
@@ -68,12 +75,11 @@ class Podfetch(object):
             for filename in filenames:
                 path = os.path.join(basedir, filename)
                 try:
-                    log.info('Read subscription from {!r}.'.format(path))
                     yield Subscription.from_file(path)
                 except Exception as e:
                     log.error(e)
 
-    def fetch_one(name):
+    def fetch_one(self, name):
         '''Update the subscription with the given ``name``.
 
         :param str name:
@@ -300,9 +306,16 @@ def download(download_url, dst_path):
     '''
     log.info('Download file from {!r} to {!r}.'.format(
         download_url, dst_path))
-    # TODO is this "The Right Way"?
-    import urllib
-    urllib.request.urlretrieve(download_url, dst_path)
+    __, tempdst = tempfile.mkstemp()
+    try:
+        urlretrieve(download_url, tempdst)
+        os.rename(tempdst, dst_path)
+    finally:
+        try:
+            os.unlink(tempdst)
+        except os.error as e:
+            if e.errno != os.errno.EEXIST:
+                raise
 
 
 def require_directory(dirname):

@@ -1,11 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
-Main entry point as defined in setup.py.
-
-Sets up the argument parser,
-configures logging
-and runs the program.
+The command line interface for Podfetch.
 '''
 import sys
 import os
@@ -45,10 +41,23 @@ log = logging.getLogger(PROG_NAME)
 
 
 def main(argv=None):
+    '''Main entry point as defined in setup.py.
+
+    Sets up the argument parser,
+    reads configuration,
+    configures logging
+    and runs the program by invoking :function:`run()`, passing the parsed arguments
+    and configuration.
+
+    :param list argv:
+        Command line arguments.
+        If *None* (the default), ``sys.argv`` is used.
+    '''
     if argv is None:
         argv = sys.argv[1:]
 
     parser = setup_argparser()
+    setup_command_parsers(parser)
     args = parser.parse_args(argv)
     cfg = read_config()
     configure_logging(
@@ -75,6 +84,15 @@ def main(argv=None):
 
 
 def run(args, cfg):
+    '''Run podfetch with the given command line args and config.
+
+    :param object args:
+        The ``Namespace`` with parsed command line arguments.
+    :param object cfg:
+        A ``ConfigParser`` instance with values parsed from the config file(s).
+    :rtype int:
+        The *Return Code* of the application-run.
+    '''
     try:
         subscriptions_dir = cfg.get('default', 'subscriptions_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
@@ -90,7 +108,7 @@ def run(args, cfg):
     log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
     log.info('Download audio files to {!r}.'.format(content_dir))
     app = application.Podfetch(subscriptions_dir, content_dir)
-    return app.fetch_all()
+    return args.func(app, args)
 
 
 def setup_argparser():
@@ -171,6 +189,85 @@ def setup_argparser():
     )
 
     return parser
+
+
+def setup_command_parsers(parent_parser):
+    subs = parent_parser.add_subparsers()
+
+    # fetch -------------------------------------------------------------------
+    fetch = subs.add_parser(
+        'fetch',
+        #parents=[parent_parser,],
+        help='Update subscriptions'
+    )
+
+    fetch.add_argument(
+        'subscription_names',
+        nargs='*',
+        help=('The names of the subscriptions to be updated.'
+            ' If no name is given, all subscriptions are updated'),
+    )
+
+    def do_fetch(app, args):
+        if not args.subscription_names:
+            return app.fetch_all()
+        else:
+            for name in args.subscription_names:
+                app.fetch_one(name)
+            # TODO rv
+            return 0
+    fetch.set_defaults(func=do_fetch)
+
+    # list --------------------------------------------------------------------
+    ls = subs.add_parser(
+        'ls',
+        #parents=[parent_parser,],
+        help='List subscriptions and downloaded files.'
+    )
+
+    ls.add_argument(
+        'subscription_names',
+        nargs='?',
+        help=('The names of the subscriptions to be updated.'
+            ' If no name is given, all subscriptions are updated'),
+    )
+
+    def do_ls(app, args):
+        out = sys.stdout
+        header = 'Podfetch Subscriptions'
+        out.write('{}\n'.format(header))
+        out.write('{}\n'.format('-' * len(header)))
+        if not args.subscription_names:
+            for subscription in app.iter_subscriptions():
+                out.write('{}\n'.format(subscription.name))
+        else:
+            for subscription in app.iter_subscriptions():
+                if subscription.name in args.subscription_names:
+                    out.write('{}\n'.format(subscription.name))
+                    # TODO list downloaded episodes
+    ls.set_defaults(func=do_ls)
+
+    # add ---------------------------------------------------------------------
+    add = subs.add_parser(
+        'add',
+        #parents=[parent_parser,],
+        help='Add a new subscription.'
+    )
+
+    add.add_argument(
+        'url',
+        help='The feed URL.'
+    )
+    add.add_argument(
+        '-n', '--name',
+        help=('A name for the subscription.'
+            ' If none is given, the name will be derived from the URL.'),
+    )
+
+    def do_add(app, args):
+        sub = app.add_subscription(args.url, name=args.name)
+        return 0
+    add.set_defaults(func=do_add)
 
 
 def read_config(extra_config_paths=None, require=False):

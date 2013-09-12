@@ -58,7 +58,7 @@ class Subscription(object):
         cfg.add_section('subscription')
         cfg.set('subscription', 'url', self.feed_url)
         filename = os.path.join(dirname, self.name)
-        log.info('Save Subscription {!r} to {!r}.'.format(self.name, filename))
+        log.debug('Save Subscription {!r} to {!r}.'.format(self.name, filename))
         with open(filename, 'w') as fp:
             cfg.write(fp)
 
@@ -77,6 +77,7 @@ class Subscription(object):
             raise NoSubscriptionError(
                 'No config file exists at {!r}.'.format(path))
 
+        log.debug('Read subscription from {!r}.'.format(path))
         name = os.path.basename(path)
         feed_url = cfg.get('subscription', 'url')
         return cls(name, feed_url)
