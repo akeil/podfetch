@@ -155,7 +155,7 @@ class Podfetch(object):
             except Exception as e: # TODO error handling
                 log.error(e)
 
-    def add_subscription(self, url, name=None):
+    def add_subscription(self, url, name=None, max_episodes=-1):
         '''Add a new subscription.
 
         :param str url:
@@ -165,6 +165,9 @@ class Podfetch(object):
             If name is *None*, the name will be derived from the url.
             If necessary, the ``name`` will be modified so that it is unique
             within the subscriptions dir.
+        :param int max_episodes:
+            Keep at max *n* downloaded episodes for this subscription.
+            Defaults to ``-1`` (unlimited).
         :rtype object:
             A :class:`Subscription` instance.
         '''
@@ -223,6 +226,29 @@ class Podfetch(object):
                 'Changed name from {!r} to {!r}.'.format(original_name, name))
 
         return name
+
+    def purge_all(self):
+        for subscription in self.iter_subscriptions():
+            self._purge_subscription(subscription)
+
+    def purge_one(self, name):
+        filename = os.path.join(self.subscriptions_dir, name)
+        subscription = Subscription.from_file(filename)
+        self._purge_subscription(subscription)
+
+    def _purge_subscription(self, subscription):
+        if subscription.max_episodes < 0:
+            log.info(('Number of episodes not limited'
+                ' for subscription {!r}.').format(subscription.name))
+        else:
+            content_dir = os.path.join(self.content_dir, subscription.name)
+            filenames = os.listdir(content_dir)
+            delete_count = len(filenames) - subscription.max_episodes
+            to_be_deleted = sorted(filenames, reverse=True)[delete_count:]
+            for filename in to_be_deleted:
+                path = os.path.join(content_dir, filename)
+                log.info('Delete episode {!r}'.format(path))
+                os.unlink(path)
 
 
 def name_from_url(url):

@@ -43,12 +43,13 @@ def app(tmpdir):
     return app
 
 
-def _write_subscription_config(path, url=None):
+def _write_subscription_config(path, url=None, max_episodes=-1):
     url = url or 'http://example.com/feed'
     with open(path, 'w') as f:
         f.write('\n'.join([
             '[subscription]',
             'url = {}'.format(url),
+            'max_episodes = {}'.format(max_episodes),
         ]))
 
 
@@ -191,6 +192,58 @@ def test_name_from_url():
     ]
     for url, expected in cases:
         assert application.name_from_url(url) == expected
+
+
+def _create_subscription(app, name,
+    url=None, max_episodes=-1, create_episodes=0):
+    _write_subscription_config(
+        os.path.join(app.subscriptions_dir, name),
+        url=url,
+        max_episodes=max_episodes,
+    )
+
+    content_dir = os.path.join(app.content_dir, name)
+    os.mkdir(content_dir)
+    for index in range(create_episodes):
+        filename = 'episode-{}'.format(index)
+        path = os.path.join(content_dir, filename)
+        with open(path, 'w') as f:
+            f.write('some content')
+
+
+def test_purge(app):
+    name = 'my-subscription'
+    num_episodes = 10
+    max_episodes = 5
+    _create_subscription(
+        app, name, max_episodes=max_episodes, create_episodes=num_episodes
+    )
+    content_dir = os.path.join(app.content_dir, name)
+    assert len(os.listdir(content_dir)) == num_episodes
+
+    app.purge_one(name)
+    remaining = os.listdir(content_dir)
+    assert len(remaining) == max_episodes
+    assert 'episode-9' in remaining
+    assert 'episode-5' in remaining
+    assert 'episode-0' not in remaining
+    assert 'episode-4' not in remaining
+
+
+def test_purge_keep_all(app):
+    name = 'my-subscription'
+    num_episodes = 10
+    max_episodes = -1
+    _create_subscription(
+        app, name, max_episodes=max_episodes, create_episodes=num_episodes
+    )
+    content_dir = os.path.join(app.content_dir, name)
+    assert len(os.listdir(content_dir)) == num_episodes
+
+    app.purge_one(name)
+    remaining = os.listdir(content_dir)
+    assert len(remaining) == num_episodes
+
 
 if __name__ == '__main__':
     pytest.main(__file__)

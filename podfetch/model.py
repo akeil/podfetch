@@ -23,9 +23,11 @@ log = logging.getLogger(__name__)
 
 class Subscription(object):
 
-    def __init__(self, name, feed_url):
+    def __init__(self, name, feed_url, max_episodes=-1):
         self.name = name
         self.feed_url = feed_url
+        # enabled
+        self.max_episodes = max_episodes
 
     def save(self, dirname):
         '''Save this subscription to an ini-file in the given
@@ -37,8 +39,10 @@ class Subscription(object):
         cfg = configparser.ConfigParser()
         cfg.add_section('subscription')
         cfg.set('subscription', 'url', self.feed_url)
+        cfg.set('subscription', 'max_episodes', str(self.max_episodes))
         filename = os.path.join(dirname, self.name)
-        log.debug('Save Subscription {!r} to {!r}.'.format(self.name, filename))
+        log.debug(
+            'Save Subscription {!r} to {!r}.'.format(self.name, filename))
         with open(filename, 'w') as fp:
             cfg.write(fp)
 
@@ -60,4 +64,8 @@ class Subscription(object):
         log.debug('Read subscription from {!r}.'.format(path))
         name = os.path.basename(path)
         feed_url = cfg.get('subscription', 'url')
-        return cls(name, feed_url)
+        try:
+            max_episodes = cfg.getint('subscription', 'max_episodes')
+        except configparser.NoOptionError:
+            max_episodes = -1
+        return cls(name, feed_url, max_episodes=max_episodes)

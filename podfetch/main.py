@@ -263,9 +263,19 @@ def setup_command_parsers(parent_parser):
         help=('A name for the subscription.'
             ' If none is given, the name will be derived from the URL.'),
     )
+    add.add_argument(
+        '-m', '--max-episodes',
+        type=int,
+        default=-1,
+        help=('The maximum number of downloaded episodes to keep.'
+            ' Default is "-1" (unlimited).'),
+    )
 
     def do_add(app, args):
-        sub = app.add_subscription(args.url, name=args.name)
+        sub = app.add_subscription(args.url,
+            name=args.name,
+            max_episodes=args.max_episodes
+        )
         return 0
     add.set_defaults(func=do_add)
 
