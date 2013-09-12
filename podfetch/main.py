@@ -89,7 +89,8 @@ def run(args, cfg):
 
     log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
     log.info('Download audio files to {!r}.'.format(content_dir))
-    return application.fetch_all(subscriptions_dir, content_dir)
+    app = application.Podfetch(subscriptions_dir, content_dir)
+    return app.fetch_all()
 
 
 def setup_argparser():

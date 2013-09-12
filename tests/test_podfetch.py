@@ -33,14 +33,26 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
-def test_iter_subscriptions(tmpdir):
-    for index in range(3):
-        tmpdir.join('feed-{}'.format(index)).write('\n'.join([
-            '[default]',
-            'url=http:example.com/feed',
-        ]))
+@pytest.fixture
+def app(tmpdir):
+    subsdir = str(tmpdir.join('subscriptions'))
+    os.mkdir(subsdir)
+    content_dir = str(tmpdir.join('content'))
+    os.mkdir(content_dir)
+    app = application.Podfetch(subsdir, content_dir)
+    return app
 
-    subs = [x for x in application.iter_subscriptions(str(tmpdir))]
+
+def test_iter_subscriptions(app):
+    for index in range(3):
+        filename = os.path.join(app.subscriptions_dir, 'feed-{}'.format(index))
+        with open(filename, 'w') as f:
+            f.write('\n'.join([
+                '[default]',
+                'url=http:example.com/feed',
+            ]))
+
+    subs = [x for x in app.iter_subscriptions()]
     assert len(subs) == 3
     assert 'feed-1' in [s.name for s in subs]
 
@@ -92,7 +104,7 @@ def test_file_extension_for_mime():
             application.file_extension_for_mime(mime)
 
 
-def test_process_entry(tmpdir, monkeypatch):
+def test_process_entry(tmpdir, monkeypatch, app):
     enclosures = [
         DummyEnclosure(type='audio/mpeg', href='does-not-matter'),
         DummyEnclosure(type='audio/mpeg', href='does-not-matter'),
@@ -109,9 +121,10 @@ def test_process_entry(tmpdir, monkeypatch):
 
     monkeypatch.setattr(application, 'download', mock_download)
 
-    application.process_entry(str(tmpdir), 'feed_name', entry)
-    content_dir = str(tmpdir.join('feed_name'))
-    assert len(os.listdir(content_dir)) == 2
+    app._process_entry('feed_name', entry)
+
+    feed_dir = os.path.join(app.content_dir, 'feed_name')
+    assert len(os.listdir(feed_dir)) == 2
 
 
 if __name__ == '__main__':
