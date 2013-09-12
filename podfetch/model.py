@@ -8,12 +8,18 @@ Format for subscription files::
 
 '''
 import os
+import logging
 try:
     import configparser  # python 3
 except ImportError:
     import ConfigParser as configparser  # python 2
 
 import feedparser
+
+from podfetch.exceptions import NoSubscriptionError
+
+
+log = logging.getLogger(__name__)
 
 
 class Subscription(object):
@@ -41,13 +47,36 @@ class Subscription(object):
 
             dst_path = os.path.join(self.content_root, filename)
 
+    def save(self, dirname):
+        '''Save this subscription to an ini-file in the given
+        directory. The filename will be the ``name`` of this subscription.
 
+        :param str dirname:
+            The directory in which the ini-file is placed.
+        '''
+        cfg = configparser.ConfigParser()
+        cfg.add_section('subscription')
+        cfg.set('subscription', 'url', self.feed_url)
+        filename = os.path.join(dirname, self.name)
+        log.info('Save Subscription {!r} to {!r}.'.format(self.name, filename))
+        with open(filename, 'w') as fp:
+            cfg.write(fp)
 
     @classmethod
     def from_file(cls, path):
-        name = os.path.basename(path)
-        cfg = configparser.ConfigParser()
-        cfg.read(path)
-        feed_url = cfg.get('default', 'url')
+        '''Load a ``Subscription`` from its config file.
 
+        :rtype object:
+            A Subscription instance.
+        :raises:
+            NoSubscriptionError if no config file exists.
+        '''
+        cfg = configparser.ConfigParser()
+        read_from = cfg.read(path)
+        if not read_from:
+            raise NoSubscriptionError(
+                'No config file exists at {!r}.'.format(path))
+
+        name = os.path.basename(path)
+        feed_url = cfg.get('subscription', 'url')
         return cls(name, feed_url)

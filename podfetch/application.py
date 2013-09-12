@@ -3,11 +3,17 @@
 Main application module.
 '''
 import os
+import shutil
 import logging
+try:
+    from urllib.parse import urlparse  # python 3.x
+except ImportError:
+    from urlparse import urlparse  # python 2.x
 
 import feedparser
 
 from podfetch.model import Subscription
+
 
 log = logging.getLogger(__name__)
 
@@ -17,13 +23,18 @@ OK = 0
 
 
 class Podfetch(object):
+    '''The main application class.
+    Used to manage and update subscriptions.'''
 
     def __init__(self, subscriptions_dir, content_dir):
         self.subscriptions_dir = subscriptions_dir
         self.content_dir = content_dir
 
     def fetch_all(self):
-        '''Fetch all feeds.
+        '''Update all subscriptions.
+
+        Retrieves the feeds for each subscription
+        and downloads any new episodes.
 
         :rtype int:
             An *Error Code* describing the result.
@@ -49,6 +60,10 @@ class Podfetch(object):
             return OK
 
     def iter_subscriptions(self):
+        '''Iterate over all configured subscriptions.
+        *yields* a :class:`Subscription` instance for each configuration file
+        in the ``subscriptions_dir``.
+        '''
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
             for filename in filenames:
                 path = os.path.join(basedir, filename)
@@ -59,7 +74,11 @@ class Podfetch(object):
                     log.error(e)
 
     def fetch_one(name):
-        '''Update the subscription with the given ``name``.'''
+        '''Update the subscription with the given ``name``.
+
+        :param str name:
+            The name of the config file for the subscription.
+        '''
         filename = os.path.join(self.subscriptions_dir, name)
         subscription = Subscription.from_file(filename)
         self._update_subscription(subscription)
@@ -130,8 +149,100 @@ class Podfetch(object):
             except Exception as e: # TODO error handling
                 log.error(e)
 
+    def add_subscription(self, url, name=None):
+        '''Add a new subscription.
+
+        :param str url:
+            The feed URL for the new subscription
+        :param str name:
+            *optional* name for the subscription.
+            If name is *None*, the name will be derived from the url.
+            If necessary, the ``name`` will be modified so that it is unique
+            within the subscriptions dir.
+        :rtype object:
+            A :class:`Subscription` instance.
+        '''
+        if not name:
+            name = name_from_url(url)
+        uname = self.make_unique_name(name)
+        sub = Subscription(uname, url)
+        sub.save(self.subscriptions_dir)
+        return sub
+
+    def remove_subscription(self, name, delete_content=True):
+        '''Delete the subscription with the given name.
+
+        This will remove the configuration for this subscription
+        and optionally clean up all downloaded content.
+
+        :param str name:
+            The name of the subscription to be removed.
+        :param bool delete_content:
+            Whether to delete downloaded audio file from that subscription.
+            Defaults to *True*.
+        '''
+        filename = os.path.join(self.subscriptions_dir, name)
+        log.info('Delete subscription at {!r}.'.format(filename))
+        try:
+            os.unlink(filename)
+        except os.error as e:
+            if e.errno != os.errno.ENOENT:
+                raise
+
+        if delete_content:
+            content_dir = os.path.join(self.content_dir, name)
+            log.info('Delete contents at {!r}.'.format(content_dir))
+            shutil.rmtree(content_dir, ignore_errors=True)
+
+
+    def make_unique_name(self, name):
+        '''Modify the given ``name`` so that we get  a name that does
+        not already exist as a config file in the ``subscriptions_dir``.
+
+        :param str name:
+            The name to start with.
+        :rtype str:
+            The original ``name`` if that was already unique
+            or a modified name that is unique.
+        '''
+        existing_names = [s.name for s in self.iter_subscriptions()]
+        original_name = name
+        counter = 1
+        while name in existing_names:
+            name = '{}-{}'.format(original_name, counter)
+            counter += 1
+
+        if name != original_name:
+            log.info(
+                'Changed name from {!r} to {!r}.'.format(original_name, name))
+
+        return name
+
+
+def name_from_url(url):
+    '''Derive a subscription name from a URL.
+
+    :param str url:
+        The URL to use.
+    :rtype str:
+        The subscription name derived from the URL.
+    '''
+    components = urlparse(url)
+    name = components.hostname
+    if name.startswith('www.'):
+        name = name[4:]
+    return name
+
 
 def file_extension_for_mime(mime):
+    '''Get the appropriate file extension for a given mime-type.
+
+    :param str mim:
+        The content type, e.g. "audio/mpeg".
+    :rtype str:
+        The associated file extension *without* a dot ("."),
+        e.g. "mp3".
+    '''
     try:
         return {
             'audio/mpeg': 'mp3',
@@ -143,6 +254,12 @@ def file_extension_for_mime(mime):
 
 
 def safe_filename(unsafe):
+    '''Convert a string so that it is save for use as a filename.
+    :param str unsafe:
+        The potentially unsafe string.
+    :rtype str:
+        A string safe for use as a filename.
+    '''
     safe = unsafe.replace('/', '_')
     safe = safe.replace('\\', '_')
     safe = safe.replace(':', '_')

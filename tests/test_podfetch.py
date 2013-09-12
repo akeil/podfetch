@@ -43,14 +43,19 @@ def app(tmpdir):
     return app
 
 
+def _write_subscription_config(path, url=None):
+    url = url or 'http://example.com/feed'
+    with open(path, 'w') as f:
+        f.write('\n'.join([
+            '[subscription]',
+            'url = {}'.format(url),
+        ]))
+
+
 def test_iter_subscriptions(app):
     for index in range(3):
         filename = os.path.join(app.subscriptions_dir, 'feed-{}'.format(index))
-        with open(filename, 'w') as f:
-            f.write('\n'.join([
-                '[default]',
-                'url=http:example.com/feed',
-            ]))
+        _write_subscription_config(filename)
 
     subs = [x for x in app.iter_subscriptions()]
     assert len(subs) == 3
@@ -126,6 +131,66 @@ def test_process_entry(tmpdir, monkeypatch, app):
     feed_dir = os.path.join(app.content_dir, 'feed_name')
     assert len(os.listdir(feed_dir)) == 2
 
+
+def test_unique_name(app):
+    path = os.path.join(app.subscriptions_dir, 'existing')
+    _write_subscription_config(path)
+    unique_name = app.make_unique_name('existing')
+    assert unique_name != 'existing'
+
+
+def test_add_subscription(app):
+    first = app.add_subscription('http://example.com/feed', name='the-name')
+    second = app.add_subscription('http://example.com/feed', name='the-name')
+    assert 'the-name' in [s.name for s in app.iter_subscriptions()]
+    assert second.name != first.name
+    assert len([s for s in app.iter_subscriptions()]) == 2
+
+
+def test_remove_subscription(app):
+    sub = app.add_subscription('some-url', 'the-name')
+    assert sub.name in [s.name for s in app.iter_subscriptions()]
+    app.remove_subscription('the-name')
+    assert sub.name not in [s.name for s in app.iter_subscriptions()]
+
+
+def test_remove_subscription_content(app):
+    sub = app.add_subscription('some-url', 'the-name')
+    content_dir = os.path.join(app.content_dir, 'the-name')
+    os.mkdir(content_dir)
+    content_file = os.path.join(content_dir, 'somefile')
+    with open(content_file, 'w') as f:
+        f.write('some content')
+    app.remove_subscription('the-name', delete_content=True)
+    assert not os.path.exists(content_file)
+    assert not os.path.exists(content_dir)
+
+
+def test_keep_subscription_content(app):
+    sub = app.add_subscription('some-url', 'the-name')
+    content_dir = os.path.join(app.content_dir, 'the-name')
+    os.mkdir(content_dir)
+    content_file = os.path.join(content_dir, 'somefile')
+    with open(content_file, 'w') as f:
+        f.write('some content')
+    app.remove_subscription('the-name', delete_content=False)
+    # subscription is gone
+    assert sub.name not in [s.name for s in app.iter_subscriptions()]
+    # content is left
+    assert os.path.exists(content_file)
+
+
+def test_name_from_url():
+    cases = [
+        ('http://example.com','example.com'),
+        ('http://example.com/something','example.com'),
+        ('http://example.com?query','example.com'),
+#        ('example.com','example.com'),
+        ('http://www.example.com','example.com'),
+        ('http://sub.example.com','sub.example.com'),
+    ]
+    for url, expected in cases:
+        assert application.name_from_url(url) == expected
 
 if __name__ == '__main__':
     pytest.main(__file__)
