@@ -338,11 +338,13 @@ def download(download_url, dst_path):
     try:
         urlretrieve(download_url, tempdst)
         shutil.move(tempdst, dst_path)
+        # TODO permissions for the new file
+        # should be -rw-rw-r (?)
     finally:
         try:
             os.unlink(tempdst)
         except os.error as e:
-            if e.errno != os.errno.EEXIST:
+            if e.errno != os.errno.ENOENT:
                 raise
 
 
