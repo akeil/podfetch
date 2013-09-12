@@ -270,12 +270,19 @@ def setup_command_parsers(parent_parser):
         help=('The maximum number of downloaded episodes to keep.'
             ' Default is "-1" (unlimited).'),
     )
+    add.add_argument(
+        '--no-fetch',
+        action='store_true',
+        help='Do not immediately fetch content for the new subscription.',
+    )
 
     def do_add(app, args):
         sub = app.add_subscription(args.url,
             name=args.name,
             max_episodes=args.max_episodes
         )
+        if not args.no_fetch:
+            app.fetch_one(sub.name)
         return 0
     add.set_defaults(func=do_add)
 
