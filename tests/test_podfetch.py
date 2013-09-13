@@ -58,53 +58,6 @@ def test_iter_subscriptions(app):
     assert 'feed-1' in [s.name for s in subs]
 
 
-def test_generate_enclosure_filename():
-    enclosure = DummyEnclosure(type='audio/mpeg', href='does-not-matter')
-    entry = DummyEntry(
-        guid='guid',
-        published_parsed=(2013,9,10,11,12,13,0),
-        enclosures=[enclosure,],
-    )
-
-    filename = application.generate_filename_for_enclosure(entry, 0, enclosure)
-    assert filename == '2013-09-10_11-12-13_guid_0.mp3'
-
-
-def test_safe_filename():
-    cases = [
-        ('already-safe', 'already-safe'),
-        ('with witespace', 'with witespace'),
-        ('path/separator', 'path_separator'),
-        ('a\\b', 'a_b'),
-        ('a:b', 'a_b'),
-    ]
-    for unsafe, expected in cases:
-        assert application.safe_filename(unsafe) == expected
-
-
-def test_file_extension_for_mime():
-    supported_cases = [
-        ('audio/mpeg', 'mp3'),
-        ('audio/ogg', 'ogg'),
-        ('audio/flac', 'flac'),
-        ('audio/MPEG', 'mp3'),
-        ('AUDIO/ogg', 'ogg'),
-        ('AUDIO/FLAC', 'flac'),
-    ]
-    for mime, expected in supported_cases:
-        assert application.file_extension_for_mime(mime) == expected
-
-    unsupported = [
-        'image/jpeg',
-        'bogus',
-        1,
-        None,
-    ]
-    for mime in unsupported:
-        with pytest.raises(ValueError):
-            application.file_extension_for_mime(mime)
-
-
 def test_unique_name(app):
     '''Make sure the application finds unique names for new subscriptions.'''
     path = os.path.join(app.subscriptions_dir, 'existing')

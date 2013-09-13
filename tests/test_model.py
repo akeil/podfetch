@@ -356,6 +356,53 @@ def test_download_error():
     assert False, 'No test written'
 
 
+def test_generate_enclosure_filename():
+    enclosure = DummyEnclosure(type='audio/mpeg', href='does-not-matter')
+    entry = DummyEntry(
+        id='the-id',
+        published_parsed=(2013,9,10,11,12,13,0),
+        enclosures=[enclosure,],
+    )
+
+    filename = model.generate_filename_for_enclosure(entry, 0, enclosure)
+    assert filename == '2013-09-10_11-12-13_the-id_0.mp3'
+
+
+def test_safe_filename():
+    cases = [
+        ('already-safe', 'already-safe'),
+        ('with witespace', 'with witespace'),
+        ('path/separator', 'path_separator'),
+        ('a\\b', 'a_b'),
+        ('a:b', 'a_b'),
+    ]
+    for unsafe, expected in cases:
+        assert model.safe_filename(unsafe) == expected
+
+
+def test_file_extension_for_mime():
+    supported_cases = [
+        ('audio/mpeg', 'mp3'),
+        ('audio/ogg', 'ogg'),
+        ('audio/flac', 'flac'),
+        ('audio/MPEG', 'mp3'),
+        ('AUDIO/ogg', 'ogg'),
+        ('AUDIO/FLAC', 'flac'),
+    ]
+    for mime, expected in supported_cases:
+        assert model.file_extension_for_mime(mime) == expected
+
+    unsupported = [
+        'image/jpeg',
+        'bogus',
+        1,
+        None,
+    ]
+    for mime in unsupported:
+        with pytest.raises(ValueError):
+            model.file_extension_for_mime(mime)
+
+
 if __name__ == '__main__':
     import sys
     sys.exit(pytest.main(__file__))

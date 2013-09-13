@@ -94,7 +94,7 @@ class Subscription(object):
         try:
             with open(self.index_file) as f:
                 lines = f.readlines()
-        except OSError as e:
+        except IOError as e:
             if e.errno == os.errno.ENOENT:
                 lines = []
             else:
@@ -195,7 +195,7 @@ class Subscription(object):
                 with open(path) as f:
                     content = f.read()
                     return content or None
-            except OSError as e:
+            except IOError as e:
                 if e.errno == os.errno.ENOENT:
                     return None
                 else:
@@ -217,7 +217,7 @@ class Subscription(object):
                 try:
                     with open(path, 'w') as f:
                         f.write(content)
-                except OSError as e:
+                except IOError as e:
                     log.error(e)
             else:
                 try:
