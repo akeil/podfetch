@@ -119,7 +119,8 @@ def _create_app(cfg):
     log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
     log.info('Download audio files to {!r}.'.format(content_dir))
     log.info('Cache is {!r}.'.format(cache_dir))
-    app = application.Podfetch(subscriptions_dir, content_dir, cache_dir)
+    return application.Podfetch(subscriptions_dir, content_dir, cache_dir)
+
 
 def setup_argparser():
     '''Create an configure the ``ArgumentParser`` used to interpret
