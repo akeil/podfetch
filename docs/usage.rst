@@ -7,19 +7,19 @@ Command line
 
 Update all podcasts::
 
-    $ podfetch fetch
+    $ podfetch update
 
 Update selected podcasts::
 
-    $ podfetch fetch podcast_name
+    $ podfetch update podcast_name
 
 or::
 
-    $ podfetch fetch podcast_name another_podcast
+    $ podfetch update podcast_name another_podcast
 
 If used as a **cron job**::
 
-    podfetch --quiet --logfile syslog fetch
+    podfetch --quiet --logfile syslog update
 
 Managing Subscriptions
 ======================

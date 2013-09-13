@@ -15,10 +15,10 @@ Install podfetch in a virtual environment::
     $ source bin/activate
     (podfetch)$ pip install podfetch
 
-Podfetch comes with a script to update all subscriptions.
-The script can be found at ``VIRTUALENV/bin/podfetch-all``.
+Podfetch comes with a script to access the command line interface.
+The script can be found at ``VIRTUALENV/bin/podfetch``.
 If podfetch was installed as described above, the script is at
-``~/.virtualenvs/podfetch/bin/podfetch-all``.
+``~/.virtualenvs/podfetch/bin/podfetch``.
 
 Normal Cronjob
 ##############
@@ -29,7 +29,7 @@ One can set up a ``cronjob`` to do this like so::
 Will open the user-specific crontab in an editor. Add an entry for podfetch
 like this::
 
-    7 20 * * * $HOME/.virtualenvs/podfetch/bin/podfetch-all
+    7 20 * * * $HOME/.virtualenvs/podfetch/bin/podfetch --quiet update
 
 This will update all subscriptions every day at 20:07 - *if* the system
 is running at that time.
@@ -44,7 +44,7 @@ To schedule a daily update of all podcasts,
 create a symlink in ``cron.daily``
 (you need to be root to write in ``cron.daily``)::
 
-    $ sudo ln -s ~/.virtualenvs/podfetch/bin/podfetch-all /etc/cron.daily
+    $ sudo ln -s ~/.virtualenvs/podfetch/bin/podfetch --quiet update /etc/cron.daily
 
 By default, ``anacron`` will be run as ``root``.
 To change this...
