@@ -93,6 +93,11 @@ def run(args, cfg):
     :rtype int:
         The *Return Code* of the application-run.
     '''
+    app = _create_app(cfg)
+    return args.func(app, args)
+
+
+def _create_app(cfg):
     try:
         subscriptions_dir = cfg.get('default', 'subscriptions_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
@@ -115,8 +120,6 @@ def run(args, cfg):
     log.info('Download audio files to {!r}.'.format(content_dir))
     log.info('Cache is {!r}.'.format(cache_dir))
     app = application.Podfetch(subscriptions_dir, content_dir, cache_dir)
-    return args.func(app, args)
-
 
 def setup_argparser():
     '''Create an configure the ``ArgumentParser`` used to interpret
