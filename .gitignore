@@ -34,6 +34,7 @@ nosetests.xml
 .project
 .pydevproject
 *.geany
+todo
 
 # Complexity
 output/*.html
