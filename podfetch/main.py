@@ -205,9 +205,9 @@ def setup_argparser():
 def setup_command_parsers(parent_parser):
     subs = parent_parser.add_subparsers()
 
-    # fetch -------------------------------------------------------------------
+    # update-------------------------------------------------------------------
     fetch = subs.add_parser(
-        'fetch',
+        'update',
         #parents=[parent_parser,],
         help='Update subscriptions'
     )
@@ -219,15 +219,15 @@ def setup_command_parsers(parent_parser):
             ' If no name is given, all subscriptions are updated'),
     )
 
-    def do_fetch(app, args):
+    def do_update(app, args):
         if not args.subscription_names:
-            return app.fetch_all()
+            return app.update_all()
         else:
             for name in args.subscription_names:
-                app.fetch_one(name)
+                app.update_one(name)
             # TODO rv
             return 0
-    fetch.set_defaults(func=do_fetch)
+    fetch.set_defaults(func=do_update)
 
     # list --------------------------------------------------------------------
     ls = subs.add_parser(
@@ -282,7 +282,7 @@ def setup_command_parsers(parent_parser):
             ' Default is "-1" (unlimited).'),
     )
     add.add_argument(
-        '--no-fetch',
+        '--no-update',
         action='store_true',
         help='Do not immediately fetch content for the new subscription.',
     )
@@ -292,8 +292,8 @@ def setup_command_parsers(parent_parser):
             name=args.name,
             max_episodes=args.max_episodes
         )
-        if not args.no_fetch:
-            app.fetch_one(sub.name)
+        if not args.no_update:
+            app.update_one(sub.name)
         return 0
     add.set_defaults(func=do_add)
 

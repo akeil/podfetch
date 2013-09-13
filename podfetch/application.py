@@ -44,7 +44,7 @@ class Podfetch(object):
         return Subscription.from_file(
             filename, self.content_dir, self.cache_dir)
 
-    def fetch_all(self):
+    def update_all(self):
         '''Update all subscriptions.
 
         Retrieves the feeds for each subscription
@@ -85,7 +85,7 @@ class Podfetch(object):
                 except Exception as e:  # TODO exception type
                     log.error(e)
 
-    def fetch_one(self, name):
+    def update_one(self, name):
         '''Update the subscription with the given ``name``.
 
         :param str name:

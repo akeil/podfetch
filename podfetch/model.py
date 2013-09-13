@@ -23,6 +23,8 @@ try:
 except ImportError:
     from urllib import urlretrieve  # python 2.x
 
+import feedparser
+
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import FeedGoneError
 from podfetch.exceptions import FeedNotFoundError
@@ -237,9 +239,9 @@ class Subscription(object):
 def _fetch_feed(url, etag=None, modified=None):
     feed = feedparser.parse(url, etag=etag, modified=modified)
 
-    if feed.status == HTTP_GONE:
+    if feed.status == 410:  # HTTP Gone
         raise FeedGoneError('Request for URL {!r} returned HTTP 410.'.format(feed_url))
-    elif feed.status == HTTP_NOT_FOUND:
+    elif feed.status == 404:  # HTTP Not Found
         raise FeedNotFoundError('Request for URL {!r} returned HTTP 404.'.format(feed_url))
     # TODO AuthenticationFailure
 
