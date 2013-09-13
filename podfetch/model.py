@@ -9,6 +9,7 @@ Format for subscription files::
 
 '''
 import os
+import stat
 import logging
 import tempfile
 import shutil
@@ -32,6 +33,10 @@ from podfetch.exceptions import FeedNotFoundError
 
 log = logging.getLogger(__name__)
 
+
+OK = 0
+SOME_EPISODES_FAILED = 1
+ALL_EPISODES_FAILED = 2
 
 class Subscription(object):
 
@@ -132,27 +137,35 @@ class Subscription(object):
 
     def update(self):
         '''
-        :raises: FeedNotFoundError, FeedGoneError
+        :rtype int:
+            Error code indicating the result of individual downloads.
+            ``0``: OK,
+            ``1``: some episodes failed,
+            ``2``: all episodes failed.
+        :raises:
+            FeedNotFoundError, FeedGoneError
         '''
         etag, modified = self._get_cached_headers()
         feed = _fetch_feed(self.feed_url, etag=etag, modified=modified)
 
         if feed.status == 304:
             log.info('Feed for {!r} is not modified.'.format(self.name))
-            return
+            return OK
         elif feed.status == 301:  # moved permanent
             log.info('Received status 301, change url for subscription.')
             self.feed_url = feed.href
             self.save()
 
         try:
-            self._apply_updates(feed)
+            rv = self._apply_updates(feed)
         finally:
             self._save_index()
         # store etag, modified only _after_ successful update
         self._store_cached_headers(feed.get('etag'), feed.get('modified'))
+        return rv
 
     def _apply_updates(self, feed):
+        errors = 0
         for index, entry in enumerate(feed.entries):
             try:
                 self._process_feed_entry(entry)
@@ -162,8 +175,14 @@ class Subscription(object):
             except Exception as e:
                 log.error(('Failed to fetch entry for feed {n!r}.'
                     ' Error was: {e}').format(n=self.name, e=e))
-                raise  # TODO Exception Type
+                errors += 1
 
+        if errors == len(feed.entries):
+            return ALL_EPISODES_FAILED
+        elif errors != 0:
+            return SOME_EPISODES_FAILED
+        else:
+            return OK
 
     def _process_feed_entry(self, entry):
         # metadata
@@ -318,8 +337,9 @@ def download(download_url, dst_path):
     try:
         urlretrieve(download_url, tempdst)
         shutil.move(tempdst, dst_path)
-        # TODO permissions for the new file
-        # should be -rw-rw-r (?)
+        # desired permissions are -rw-r--r
+        perms = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
+        os.chmod(dst_path, perms)
     finally:
         try:
             os.unlink(tempdst)

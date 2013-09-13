@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 
 '''
-test_podfetch
-----------------------------------
+test_model
+----------
 
-Tests for `podfetch` module.
+Tests for `model` module.
 '''
 import os
+import stat
 
 import pytest
 import mock
@@ -217,16 +218,24 @@ def test_process_feed_entry(monkeypatch, sub):
     assert href3 not in requested_urls
 
 
-def test_apply_updates_max_episodes():
+def test_apply_updates_max_episodes(sub, monkeypatch):
     '''in apply updates, max entries to be processed
     is max_episodes for this subscription.
     '''
-    assert False, 'No test written'
+    with_dummy_feed(monkeypatch)
+    sub.max_episodes = 1
+    sub._process_feed_entry = mock.MagicMock()
+    sub.update()
+    sub._process_feed_entry.assert_called_once()
 
 
-def test_apply_updates_error_handling():
+def test_apply_updates_error_handling(sub, monkeypatch):
     '''Error for one feed entry should not stop us.'''
-    assert False, 'No test written'
+    # we rely on the dummy feed having more than one item
+    with_dummy_feed(monkeypatch)
+    sub._process_feed_entry = mock.MagicMock(side_effect=ValueError)
+    sub.update()
+    assert sub._process_feed_entry.call_count > 1
 
 
 def test_update_feed_unchanged(sub, monkeypatch):
@@ -303,14 +312,35 @@ def test_update_error_fetching_feed(sub, monkeypatch):
     assert modified == 'initial-modified'
 
 
-def test_downloaded_file_perms(monkeypatch):
+def test_downloaded_file_perms(tmpdir, monkeypatch):
     '''Assert that a downloaded file has the correct permissions.'''
-    # monkeypatch urrlib.urlretrieve(url, dst)
-    assert False, 'No test written'
+    def mock_urlretrieve(url, dst):
+        with open(dst, 'w') as f:
+            f.write('something')
+
+    monkeypatch.setattr(model, 'urlretrieve', mock_urlretrieve)
+
+    dst = str(tmpdir.join('dst'))
+    model.download('some-url', dst)
+    mode = os.stat(dst).st_mode
+
+    # minimum permissions we want: -rw-r--r--
+    assert mode & stat.S_IRUSR  # owner read
+    assert mode & stat.S_IWUSR  # owner write
+    assert mode & stat.S_IRGRP  # group read
+    assert mode & stat.S_IROTH  # other read
 
 
-def test_download_error():
-    assert False, 'No test written'
+def test_download_error(sub, monkeypatch):
+    with_dummy_feed(monkeypatch)
+
+    def failing_download(url, dst):
+        raise ValueError
+
+    monkeypatch.setattr(model, 'download', failing_download)
+    rv = sub.update()
+
+    assert rv == model.ALL_EPISODES_FAILED
 
 
 def test_generate_enclosure_filename():
