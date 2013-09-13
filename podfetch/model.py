@@ -13,6 +13,7 @@ import stat
 import logging
 import tempfile
 import shutil
+from collections import namedtuple
 
 try:
     import configparser  # python 3
@@ -37,6 +38,16 @@ log = logging.getLogger(__name__)
 OK = 0
 SOME_EPISODES_FAILED = 1
 ALL_EPISODES_FAILED = 2
+
+
+ContentTypeInfo = namedtuple('ContentTypeInfo', 'file_ext')
+
+SUPPORTED_CONTENT = {
+    'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
+    'audio/ogg': ContentTypeInfo(file_ext='ogg'),
+    'audio/flac': ContentTypeInfo(file_ext='flac'),
+}
+
 
 class Subscription(object):
     '''Represents a RSS/Atom feed that the user has subscribed.
@@ -301,11 +312,7 @@ def file_extension_for_mime(mime):
         e.g. "mp3".
     '''
     try:
-        return {
-            'audio/mpeg': 'mp3',
-            'audio/ogg': 'ogg',
-            'audio/flac': 'flac',
-        }[mime.lower()]
+        return SUPPORTED_CONTENT[mime.lower()].file_ext
     except (KeyError, AttributeError):
         raise ValueError('Unupported content type {!r}.'.format(mime))
 
