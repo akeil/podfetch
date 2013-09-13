@@ -100,6 +100,7 @@ class Subscription(object):
         filename = os.path.join(self.config_dir, self.name)
         log.debug(
             'Save Subscription {!r} to {!r}.'.format(self.name, filename))
+        require_directory(self.config_dir)
         with open(filename, 'w') as fp:
             cfg.write(fp)
 

@@ -20,10 +20,10 @@ from tests import common
 
 @pytest.fixture
 def mock_app(tmpdir):
-    subs_dir = tmpdir.mkdir('subscriptions')
+    config_dir = tmpdir.mkdir('config')
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
-    app = Podfetch(str(subs_dir), str(content_dir), str(cache_dir))
+    app = Podfetch(str(config_dir), str(content_dir), str(cache_dir))
 
     app.update_all = mock.MagicMock()
     app.update_one = mock.MagicMock()

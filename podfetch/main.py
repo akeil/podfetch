@@ -98,10 +98,10 @@ def run(args, cfg):
 
 def _create_app(cfg):
     try:
-        subscriptions_dir = cfg.get('default', 'subscriptions_dir')
+        config_dir = cfg.get('default', 'config_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
-        subscriptions_dir = os.path.expanduser( os.path.join(
-            '~', '.config', 'podfetch', 'subscriptions'))
+        config_dir = os.path.expanduser( os.path.join(
+            '~', '.config', 'podfetch'))
 
     try:
         content_dir = cfg.get('default', 'content_dir')
@@ -115,10 +115,10 @@ def _create_app(cfg):
         cache_dir = os.path.expanduser( os.path.join(
             '~', '.cache', 'podfetch'))
 
-    log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
+    log.info('Looking for subscriptions and hooks in {!r}.'.format(config_dir))
     log.info('Download audio files to {!r}.'.format(content_dir))
     log.info('Cache directory is {!r}.'.format(cache_dir))
-    return application.Podfetch(subscriptions_dir, content_dir, cache_dir)
+    return application.Podfetch(config_dir, content_dir, cache_dir)
 
 
 def setup_argparser():
