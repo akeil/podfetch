@@ -16,9 +16,9 @@ import shutil
 from collections import namedtuple
 
 try:
-    import configparser  # python 3
+    import configparser  # python 3.x
 except ImportError:
-    import ConfigParser as configparser  # python 2
+    import ConfigParser as configparser  # python 2.x
 
 try:
     from urllib.request import urlretrieve  # python 3.x
@@ -228,7 +228,8 @@ class Subscription(object):
         enclosures = entry.get('enclosures', [])
         for index, enclosure in enumerate(enclosures):
             if self._accept(entry, enclosure, index):
-                filename = generate_filename_for_enclosure(entry, index, enclosure)
+                filename = generate_filename_for_enclosure(
+                    entry, index, enclosure)
                 require_directory(self.content_dir)
                 dst_path = os.path.join(self.content_dir, filename)
                 download(enclosure.href, dst_path)
@@ -294,9 +295,11 @@ def _fetch_feed(url, etag=None, modified=None):
     feed = feedparser.parse(url, etag=etag, modified=modified)
 
     if feed.status == 410:  # HTTP Gone
-        raise FeedGoneError('Request for URL {!r} returned HTTP 410.'.format(feed_url))
+        raise FeedGoneError(
+            'Request for URL {!r} returned HTTP 410.'.format(feed_url))
     elif feed.status == 404:  # HTTP Not Found
-        raise FeedNotFoundError('Request for URL {!r} returned HTTP 404.'.format(feed_url))
+        raise FeedNotFoundError(
+            'Request for URL {!r} returned HTTP 404.'.format(feed_url))
     # TODO AuthenticationFailure
 
     return feed
