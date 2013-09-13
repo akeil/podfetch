@@ -9,17 +9,17 @@ Update all podcasts::
 
     $ podfetch update
 
-Update selected podcasts::
+Update a selected podcast::
 
     $ podfetch update podcast_name
 
-or::
+or more than one::
 
     $ podfetch update podcast_name another_podcast
 
-If used as a **cron job**::
+When used as a **cron job**::
 
-    podfetch --quiet --logfile syslog update
+    podfetch --quiet --logfile=syslog update
 
 Managing Subscriptions
 ======================
@@ -28,7 +28,7 @@ To add a new podcast::
 
     $ podfetch add http://example.com/rss
 
-Will create a podcast named "example".
+Will create a podcast named "example" (from example.com).
 To specify the name explicitly::
 
     $ podfetch add http://example.com/rss --name my_name

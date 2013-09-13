@@ -40,14 +40,21 @@ Anacron
 ``anacron`` can be used to run commands at a specified interval
 (*daily*, *weekly*, *monthly*) and it will "catch up" if the job did not run.
 
-To schedule a daily update of all podcasts,
-create a symlink in ``cron.daily``
+To schedule a daily update of all podcasts, create a mini script like this::
+
+    podfetch-update-all.sh
+    --------------------------------------------------------
+    ~/.virtualenvs/podfetch/bin/podfetch --quiet update
+
+...and symlink it to ``cron.daily``
 (you need to be root to write in ``cron.daily``)::
 
-    $ sudo ln -s ~/.virtualenvs/podfetch/bin/podfetch --quiet update /etc/cron.daily
+    $ sudo ln -s /path/to/podfetch-update-all.sh /etc/cron.daily
 
-By default, ``anacron`` will be run as ``root``.
-To change this...
+.. todo::
+
+    By default, ``anacron`` will be run as ``root``.
+    To change this...
 
 User Specific Anacron
 =====================
