@@ -49,9 +49,9 @@ setup(
     include_package_data=True,
     install_requires=requires,
     cmdclass={'test': PyTest,},
-    tests_require=['pytest',],
+    tests_require=['pytest', 'mock'],
     extras_require={
-        'testing': ['pytest',],
+        'testing': ['pytest', 'mock'],
     },
     license="BSD",
     zip_safe=False,

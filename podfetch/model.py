@@ -10,12 +10,22 @@ Format for subscription files::
 '''
 import os
 import logging
+import tempfile
+import shutil
+
 try:
     import configparser  # python 3
 except ImportError:
     import ConfigParser as configparser  # python 2
 
+try:
+    from urllib.request import urlretrieve  # python 3.x
+except ImportError:
+    from urllib import urlretrieve  # python 2.x
+
 from podfetch.exceptions import NoSubscriptionError
+from podfetch.exceptions import FeedGoneError
+from podfetch.exceptions import FeedNotFoundError
 
 
 log = logging.getLogger(__name__)
@@ -23,13 +33,21 @@ log = logging.getLogger(__name__)
 
 class Subscription(object):
 
-    def __init__(self, name, feed_url, max_episodes=-1):
+    def __init__(self, name, feed_url, config_dir, content_dir, cache_dir,
+        max_episodes=-1):
         self.name = name
         self.feed_url = feed_url
-        # enabled
+        self.content_dir = os.path.join(content_dir, self.name)
+        self.cache_dir = cache_dir
         self.max_episodes = max_episodes
+        self.config_dir = config_dir
 
-    def save(self, dirname):
+        self.index_file = os.path.join(
+            self.cache_dir, '{}.index'.format(self.name))
+        self.index = {}
+        self._load_index()
+
+    def save(self):
         '''Save this subscription to an ini-file in the given
         directory. The filename will be the ``name`` of this subscription.
 
@@ -40,14 +58,14 @@ class Subscription(object):
         cfg.add_section('subscription')
         cfg.set('subscription', 'url', self.feed_url)
         cfg.set('subscription', 'max_episodes', str(self.max_episodes))
-        filename = os.path.join(dirname, self.name)
+        filename = os.path.join(self.config_dir, self.name)
         log.debug(
             'Save Subscription {!r} to {!r}.'.format(self.name, filename))
         with open(filename, 'w') as fp:
             cfg.write(fp)
 
     @classmethod
-    def from_file(cls, path):
+    def from_file(cls, path, content_dir, cache_dir):
         '''Load a ``Subscription`` from its config file.
 
         :rtype object:
@@ -62,10 +80,256 @@ class Subscription(object):
                 'No config file exists at {!r}.'.format(path))
 
         log.debug('Read subscription from {!r}.'.format(path))
-        name = os.path.basename(path)
+        config_dir, name = os.path.split(path)
         feed_url = cfg.get('subscription', 'url')
         try:
             max_episodes = cfg.getint('subscription', 'max_episodes')
         except configparser.NoOptionError:
             max_episodes = -1
-        return cls(name, feed_url, max_episodes=max_episodes)
+        return cls(name, feed_url, config_dir, content_dir, cache_dir,
+            max_episodes=max_episodes)
+
+
+    def _load_index(self):
+        try:
+            with open(self.index_file) as f:
+                lines = f.readlines()
+        except OSError as e:
+            if e.errno == os.errno.ENOENT:
+                lines = []
+            else:
+                raise
+
+        self.index = {}
+        for line in lines:
+            id_, local_path = line.split('\t')
+            self.index[id_] = local_path
+
+    def _save_index(self):
+        if self.index:
+            with open(self.index_file, 'w') as f:
+                for id_, local_path in self.index.items():
+                    f.write('{}\t{}\n'.format(id_, local_path))
+        else:
+            try:
+                os.unlink(self.index_file)
+            except OSError as e:
+                if e.errno != os.errno.ENOENT:
+                    raise
+
+    def _add_to_index(self, entry, enclosure_number, local_filename):
+        id_ = '{}_{}'.format(entry.id, enclosure_number)
+        self.index[id_] = local_filename
+
+    def _in_index(self, entry, enclosure_number):
+        return self._local_file(entry, enclosure_number) is not None
+
+    def _local_file(self, entry, enclosure_number):
+        id_ = '{}_{}'.format(entry.id, enclosure_number)
+        return self.index.get(id_)
+
+    def update(self):
+        '''
+        :raises: FeedNotFoundError, FeedGoneError
+        '''
+        etag, modified = self._get_cached_headers()
+        feed = _fetch_feed(self.feed_url, etag=etag, modified=modified)
+
+        if feed.status == 304:
+            log.info('Feed for {!r} is not modified.'.format(self.name))
+            return
+        elif feed.status == 301:  # moved permanent
+            log.info('Received status 301, change url for subscription.')
+            self.feed_url = feed.href
+            self.save()
+
+        try:
+            self._apply_updates(feed)
+        finally:
+            self._save_index()
+        # store etag, modified only _after_ successful update
+        self._store_cached_headers(feed.get('etag'), feed.get('modified'))
+
+    def _apply_updates(self, feed):
+        for index, entry in enumerate(feed.entries):
+            try:
+                self._process_feed_entry(entry)
+                num_processed = index + 1
+                if num_processed == self.max_episodes:
+                    break
+            except Exception as e:
+                log.error(('Failed to fetch entry for feed {n!r}.'
+                    ' Error was: {e}').format(n=self.name, e=e))
+                raise  # TODO Exception Type
+
+
+    def _process_feed_entry(self, entry):
+        # metadata
+        title = entry.get('title', '')
+        author = ''
+        published = ''
+
+        enclosures = entry.get('enclosures', [])
+        for index, enclosure in enumerate(enclosures):
+            if self._accept(entry, enclosure, index):
+                filename = generate_filename_for_enclosure(entry, index, enclosure)
+                require_directory(self.content_dir)
+                dst_path = os.path.join(self.content_dir, filename)
+                download(enclosure.href, dst_path)
+                self._add_to_index(entry, index, dst_path)
+
+    def _accept(self, entry, enclosure, enclosure_num):
+        content_type = enclosure.get('type', '')
+        if not content_type.startswith('audio'):
+            return False
+
+        if self._in_index(entry, enclosure_num):
+            return False
+
+        return True
+
+    def _get_cached_headers(self):
+
+        def read(path):
+            try:
+                with open(path) as f:
+                    content = f.read()
+                    return content or None
+            except OSError as e:
+                if e.errno == os.errno.ENOENT:
+                    return None
+                else:
+                    raise
+
+        etag_path = os.path.join(
+            self.cache_dir, '{}.etag'.format(self.name))
+        modified_path = os.path.join(
+            self.cache_dir, '{}.modified'.format(self.name))
+        etag = read(etag_path)
+        modified = read(modified_path)
+        return etag, modified
+
+    def _store_cached_headers(self, etag, modified):
+
+        def write(content, path):
+            if content:
+                require_directory(os.path.dirname(path))
+                try:
+                    with open(path, 'w') as f:
+                        f.write(content)
+                except OSError as e:
+                    log.error(e)
+            else:
+                try:
+                    os.unlink(path)
+                except OSError as e:
+                    if e.errno != os.errno.ENOENT:
+                        raise
+
+        etag_path = os.path.join(
+            self.cache_dir, '{}.etag'.format(self.name))
+        modified_path = os.path.join(
+            self.cache_dir, '{}.modified'.format(self.name))
+        write(etag, etag_path)
+        write(modified, modified_path)
+
+
+def _fetch_feed(url, etag=None, modified=None):
+    feed = feedparser.parse(url, etag=etag, modified=modified)
+
+    if feed.status == HTTP_GONE:
+        raise FeedGoneError('Request for URL {!r} returned HTTP 410.'.format(feed_url))
+    elif feed.status == HTTP_NOT_FOUND:
+        raise FeedNotFoundError('Request for URL {!r} returned HTTP 404.'.format(feed_url))
+    # TODO AuthenticationFailure
+
+    return feed
+
+
+def file_extension_for_mime(mime):
+    '''Get the appropriate file extension for a given mime-type.
+
+    :param str mim:
+        The content type, e.g. "audio/mpeg".
+    :rtype str:
+        The associated file extension *without* a dot ("."),
+        e.g. "mp3".
+    '''
+    try:
+        return {
+            'audio/mpeg': 'mp3',
+            'audio/ogg': 'ogg',
+            'audio/flac': 'flac',
+        }[mime.lower()]
+    except (KeyError, AttributeError):
+        raise ValueError('Unupported content type {!r}.'.format(mime))
+
+
+def safe_filename(unsafe):
+    '''Convert a string so that it is save for use as a filename.
+    :param str unsafe:
+        The potentially unsafe string.
+    :rtype str:
+        A string safe for use as a filename.
+    '''
+    safe = unsafe.replace('/', '_')
+    safe = safe.replace('\\', '_')
+    safe = safe.replace(':', '_')
+    return safe
+
+
+def generate_filename_for_enclosure(entry, index, enclosure):
+    name_template = '{timestamp}_{name}_{index}.{ext}'
+    published = entry.published_parsed
+    timestamp = ('{year}-{month:0>2d}-{day:0>2d}'
+        '_{hour:0>2d}-{minute:0>2d}-{second:0>2d}').format(
+        year=published[0],
+        month=published[1],
+        day=published[2],
+        hour=published[3],
+        minute=published[4],
+        second=published[5],
+    )
+
+    basename, ext = os.path.splitext(entry.id)
+    known_extensions = ('.mp3', '.ogg', '.flac')
+    if ext in known_extensions:
+        name = basename
+    else:
+        name = entry.id
+
+    return safe_filename( name_template.format(
+        timestamp=timestamp,
+        name=name,
+        index=index,
+        ext=file_extension_for_mime(enclosure.type)
+    ))
+
+
+def download(download_url, dst_path):
+    '''Download whatever is located at ``download_url``
+    and store it at ``dst_path``.
+    '''
+    log.info('Download file from {!r} to {!r}.'.format(
+        download_url, dst_path))
+    __, tempdst = tempfile.mkstemp()
+    try:
+        urlretrieve(download_url, tempdst)
+        shutil.move(tempdst, dst_path)
+        # TODO permissions for the new file
+        # should be -rw-rw-r (?)
+    finally:
+        try:
+            os.unlink(tempdst)
+        except os.error as e:
+            if e.errno != os.errno.ENOENT:
+                raise
+
+
+def require_directory(dirname):
+    '''Create the given directory if it does not exist.'''
+    try:
+        os.makedirs(dirname)
+    except os.error as e:
+        if e.errno != os.errno.EEXIST:
+            raise

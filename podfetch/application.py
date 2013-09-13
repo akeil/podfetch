@@ -20,6 +20,7 @@ except ImportError:
 import feedparser
 
 from podfetch.model import Subscription
+from podfetch import exceptions as ex
 
 
 log = logging.getLogger(__name__)
@@ -33,9 +34,15 @@ class Podfetch(object):
     '''The main application class.
     Used to manage and update subscriptions.'''
 
-    def __init__(self, subscriptions_dir, content_dir):
+    def __init__(self, subscriptions_dir, content_dir, cache_dir):
         self.subscriptions_dir = subscriptions_dir
         self.content_dir = content_dir
+        self.cache_dir = cache_dir
+
+    def _load_subscription(self, name):
+        filename = os.path.join(self.subscriptions_dir, name)
+        return Subscription.from_file(
+            filename, self.content_dir, self.cache_dir)
 
     def fetch_all(self):
         '''Update all subscriptions.
@@ -72,11 +79,10 @@ class Podfetch(object):
         in the ``subscriptions_dir``.
         '''
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
-            for filename in filenames:
-                path = os.path.join(basedir, filename)
+            for name in filenames:
                 try:
-                    yield Subscription.from_file(path)
-                except Exception as e:
+                    yield self._load_subscription(name)
+                except Exception as e:  # TODO exception type
                     log.error(e)
 
     def fetch_one(self, name):
@@ -85,8 +91,7 @@ class Podfetch(object):
         :param str name:
             The name of the config file for the subscription.
         '''
-        filename = os.path.join(self.subscriptions_dir, name)
-        subscription = Subscription.from_file(filename)
+        subscription = self._load_subscription(name)
         self._update_subscription(subscription)
 
     def _update_subscription(self, subscription):
@@ -107,123 +112,7 @@ class Podfetch(object):
             authentication failure
         '''
         log.info('Update subscription {!r}.'.format(subscription.name))
-
-        cache_dir = os.path.expanduser(
-            os.path.join('~', '.cache', 'podfetch'))
-        etag_path = os.path.join(
-            cache_dir, '{}.etag'.format(subscription.name))
-        modified_path = os.path.join(
-            cache_dir, '{}.modified'.format(subscription.name))
-
-        def read(path):
-            try:
-                with open(path) as f:
-                    return f.read()
-            except OSError as e:
-                if e.errno == os.errno.ENOENT:
-                    return None
-                else:
-                    raise
-
-        etag = read(etag_path)
-        modified = read(modified_path)
-
-        feed = feedparser.parse(subscription.feed_url,
-            etag=etag, modified=modified)
-
-        HTTP_PERMANENT_REDIRECT = 301
-        HTTP_GONE = 410
-        HTTP_NOT_FOUND = 404
-        if feed.status == 304:
-            # we submitted an etag/modified
-            log.info('Feed is unchanged.')
-            return OK
-        elif feed.status == HTTP_GONE:
-            # TODO more specific error class
-            # and handle ...somewhere
-            raise ValueError('Feed is GONE.')
-        elif feed.status == HTTP_NOT_FOUND:
-            raise ValueError('Feed does not exist.')
-        # TODO AuthenticationFailure
-        elif feed.status == HTTP_PERMANENT_REDIRECT:
-            log.info('Received status 301, change url for subscription.')
-            new_url = feed.href
-            subscription.feed_url = new_url
-            subscription.save()
-
-        error_count = 0
-        for index, entry in enumerate(feed.entries):
-            try:
-                self._process_entry(subscription.name, entry)
-                num_processed = index + 1
-                if num_processed == subscription.max_episodes:
-                    break
-            except Exception as e:
-                log.error(('Failed to fetch entry for feed {n!r}.'
-                    ' Error was: {e}').format(n=subscription.name, e=e))
-                error_count += 1
-
-        self.purge_one(subscription.name)
-        # run hooks for feed downloaded
-        # the list of downloaded files in the hook
-        # skip if nothing was fetched.
-
-        if error_count:
-            if error_count == num_items:
-                rv = ALL_ITEMS_FAILED
-            else:
-                rv = SOME_ITEMS_FAILED
-        else:
-            rv = OK
-
-        # write etag and or modified info _after_ the feed
-        # was successfully processed.
-        def write(content, path):
-            if content:
-                require_directory(os.path.dirname(path))
-                try:
-                    with open(path, 'w') as f:
-                        f.write(content)
-                except OSError as e:
-                    log.error(e)
-            else:
-                try:
-                    os.unlink(path)
-                except OSError as e:
-                    if e.errno != os.errno.ENOENT:
-                        raise
-
-        if rv == OK:
-            write(feed.get('etag'), etag_path)
-            write(feed.get('modified'), modified_path)
-
-        return rv
-
-    def _process_entry(self, feed_name, entry):
-        '''Process a single feed entry.
-        Fetch the content for each enclosure (RSS feeds have max one,
-        Atom feeds can have multiple enclosures per item).
-        Determines the destination path for the enclosures,
-        checks if we have already downloaded them
-        and if not, downloads.
-        '''
-        enclosures = entry.get('enclosures', [])
-        for index, enclosure in enumerate(enclosures):
-            try:
-                # TODO filter enclosures that are not audio files
-                filename = generate_filename_for_enclosure(entry, index, enclosure)
-                dirname = os.path.join(self.content_dir, feed_name)
-                require_directory(dirname)
-                dst_path = os.path.join(dirname, filename)
-                if os.path.exists(dst_path):
-                    log.info('Enclosure {}-{}-{} already downloaded.'.format(
-                        feed_name, entry.guid, index))
-                    continue
-                else:
-                    download(enclosure.href, dst_path)
-                    # run hook for item downloaded
-            except Exception as e: # TODO error handling
-                log.error(e)
+        subscription.update()
 
     def add_subscription(self, url, name=None, max_episodes=-1):
         '''Add a new subscription.
@@ -243,9 +132,10 @@ class Podfetch(object):
         '''
         if not name:
             name = name_from_url(url)
-        uname = self.make_unique_name(name)
-        sub = Subscription(uname, url)
-        sub.save(self.subscriptions_dir)
+        uname = self._make_unique_name(name)
+        sub = Subscription(uname, url,
+            self.subscriptions_dir, self.content_dir, self.cache_dir)
+        sub.save()
         return sub
 
     def remove_subscription(self, name, delete_content=True):
@@ -274,7 +164,7 @@ class Podfetch(object):
             shutil.rmtree(content_dir, ignore_errors=True)
 
 
-    def make_unique_name(self, name):
+    def _make_unique_name(self, name):
         '''Modify the given ``name`` so that we get  a name that does
         not already exist as a config file in the ``subscriptions_dir``.
 
@@ -302,8 +192,7 @@ class Podfetch(object):
             self._purge_subscription(subscription)
 
     def purge_one(self, name):
-        filename = os.path.join(self.subscriptions_dir, name)
-        subscription = Subscription.from_file(filename)
+        subscription = self._load_subscription(name)
         self._purge_subscription(subscription)
 
     def _purge_subscription(self, subscription):
@@ -319,6 +208,7 @@ class Podfetch(object):
                 path = os.path.join(content_dir, filename)
                 log.info('Delete episode {!r}'.format(path))
                 os.unlink(path)
+
 
 import subprocess
 import shlex

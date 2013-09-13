@@ -105,9 +105,16 @@ def run(args, cfg):
         content_dir = os.path.expanduser( os.path.join(
             '~', '.local', 'share', 'podfetch', 'content'))
 
+    try:
+        cache_dir = cfg.get('default', 'cache_dir')
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        cache_dir = os.path.expanduser( os.path.join(
+            '~', '.cache', 'podfetch'))
+
     log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
     log.info('Download audio files to {!r}.'.format(content_dir))
-    app = application.Podfetch(subscriptions_dir, content_dir)
+    log.info('Cache is {!r}.'.format(cache_dir))
+    app = application.Podfetch(subscriptions_dir, content_dir, cache_dir)
     return args.func(app, args)
 
 

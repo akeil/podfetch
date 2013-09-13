@@ -13,8 +13,6 @@ import os
 from podfetch import application
 
 
-from collections import namedtuple
-
 class DummyEntry(object):
 
     def __init__(self, **kwargs):
@@ -27,19 +25,16 @@ class DummyEntry(object):
     def get(self, key, fallback=None):
         return self._data.get(key, fallback)
 
+from collections import namedtuple
 DummyEnclosure = namedtuple('DummyEnclosure', 'type href')
-
-import logging
-logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.fixture
 def app(tmpdir):
-    subsdir = str(tmpdir.join('subscriptions'))
-    os.mkdir(subsdir)
-    content_dir = str(tmpdir.join('content'))
-    os.mkdir(content_dir)
-    app = application.Podfetch(subsdir, content_dir)
+    subsdir = tmpdir.mkdir('subscriptions')
+    content_dir = tmpdir.mkdir('content')
+    cache_dir = tmpdir.mkdir('cache')
+    app = application.Podfetch(str(subsdir), str(content_dir), str(cache_dir))
     return app
 
 
@@ -110,33 +105,11 @@ def test_file_extension_for_mime():
             application.file_extension_for_mime(mime)
 
 
-def test_process_entry(tmpdir, monkeypatch, app):
-    enclosures = [
-        DummyEnclosure(type='audio/mpeg', href='does-not-matter'),
-        DummyEnclosure(type='audio/mpeg', href='does-not-matter'),
-    ]
-    entry = DummyEntry(
-        guid='guid',
-        published_parsed=(2013,9,10,20,21,22,0),
-        enclosures=enclosures
-    )
-
-    def mock_download(url, dst_path):
-        with open(dst_path, 'w') as f:
-            f.write('something')
-
-    monkeypatch.setattr(application, 'download', mock_download)
-
-    app._process_entry('feed_name', entry)
-
-    feed_dir = os.path.join(app.content_dir, 'feed_name')
-    assert len(os.listdir(feed_dir)) == 2
-
-
 def test_unique_name(app):
+    '''Make sure the application finds unique names for new subscriptions.'''
     path = os.path.join(app.subscriptions_dir, 'existing')
     _write_subscription_config(path)
-    unique_name = app.make_unique_name('existing')
+    unique_name = app._make_unique_name('existing')
     assert unique_name != 'existing'
 
 
