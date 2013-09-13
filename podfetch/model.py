@@ -39,6 +39,27 @@ SOME_EPISODES_FAILED = 1
 ALL_EPISODES_FAILED = 2
 
 class Subscription(object):
+    '''Represents a RSS/Atom feed that the user has subscribed.
+    ``Subscription`` instances are based on a config-file
+    (one for each subscription) and represent the data from that file.
+
+    ``Subscription`` instances are normally created and used by the
+    :class:`Podfetch` application class.
+
+    Provides methods to :method:`update` itself from the RSS-feed.
+
+    :var str name:
+        The name of the subscription and also
+        the name of its config-file
+        and the directory in which downloaded episodes are stored
+        and the name och cache-files generated for this subscription.
+    :var str feed_url:
+        The URL for the podcast-feed.
+        Read from the confoig file.
+    :var int max_episodes:
+        The maximum number of episodes to keep downloaded.
+        Read from the confoig file.
+    '''
 
     def __init__(self, name, feed_url, config_dir, content_dir, cache_dir,
         max_episodes=-1):
@@ -136,14 +157,17 @@ class Subscription(object):
         return self.index.get(id_)
 
     def update(self):
-        '''
+        '''fetch the RSS/Atom feed for this podcast and download any new
+        episodes.
+
         :rtype int:
             Error code indicating the result of individual downloads.
             ``0``: OK,
             ``1``: some episodes failed,
             ``2``: all episodes failed.
         :raises:
-            FeedNotFoundError, FeedGoneError
+            In addition to the error code, a :class:`FeedNotFoundError`
+            or :class:`FeedGoneError` can be raised.
         '''
         etag, modified = self._get_cached_headers()
         feed = _fetch_feed(self.feed_url, etag=etag, modified=modified)

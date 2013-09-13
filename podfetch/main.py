@@ -67,7 +67,6 @@ def main(argv=None):
         log_level=args.log_level,
     )
 
-    log.info('Starting.')
     try:
         rv = run(args, cfg)
     except KeyboardInterrupt:
@@ -118,7 +117,7 @@ def _create_app(cfg):
 
     log.info('Looking for subscriptions in {!r}.'.format(subscriptions_dir))
     log.info('Download audio files to {!r}.'.format(content_dir))
-    log.info('Cache is {!r}.'.format(cache_dir))
+    log.info('Cache directory is {!r}.'.format(cache_dir))
     return application.Podfetch(subscriptions_dir, content_dir, cache_dir)
 
 
@@ -208,22 +207,21 @@ def setup_command_parsers(parent_parser):
     # update-------------------------------------------------------------------
     fetch = subs.add_parser(
         'update',
-        #parents=[parent_parser,],
-        help='Update subscriptions'
+        help='Update subscriptions.'
     )
 
     fetch.add_argument(
-        'subscription_names',
+        'subscription_name',
         nargs='*',
         help=('The names of the subscriptions to be updated.'
-            ' If no name is given, all subscriptions are updated'),
+            ' If no name is given, all subscriptions are updated.'),
     )
 
     def do_update(app, args):
-        if not args.subscription_names:
+        if not args.subscription_name:
             return app.update_all()
         else:
-            for name in args.subscription_names:
+            for name in args.subscription_name:
                 app.update_one(name)
             # TODO rv
             return 0
@@ -232,15 +230,16 @@ def setup_command_parsers(parent_parser):
     # list --------------------------------------------------------------------
     ls = subs.add_parser(
         'ls',
-        #parents=[parent_parser,],
         help='List subscriptions and downloaded files.'
     )
 
     ls.add_argument(
-        'subscription_names',
+        'subscription_name',
         nargs='?',
-        help=('The names of the subscriptions to be updated.'
-            ' If no name is given, all subscriptions are updated'),
+        help=('The names of the subscriptions to be listed.'
+            ' If one or more names are given, lists downloaded files.'
+            ' If no name is given, prints a list of all subscriptions'
+            ' and no files.'),
     )
 
     def do_ls(app, args):
@@ -261,7 +260,6 @@ def setup_command_parsers(parent_parser):
     # add ---------------------------------------------------------------------
     add = subs.add_parser(
         'add',
-        #parents=[parent_parser,],
         help='Add a new subscription.'
     )
 
@@ -300,15 +298,15 @@ def setup_command_parsers(parent_parser):
     # purge --------------------------------------------------------------------
     purge = subs.add_parser(
         'purge',
-        #parents=[parent_parser,],
         help='Remove old downloaded episodes.'
     )
 
     purge.add_argument(
-        'subscription_names',
+        'subscription_name',
         nargs='?',
-        help=('The names of the subscriptions to be purged.'
-            ' If no name is given, all subscriptions are purged'),
+        help=('The names of the subscriptions for which old files'
+            ' should be removed. If no name is given, all subscriptions'
+            ' are purged.'),
     )
 
     def do_purge(app, args):
