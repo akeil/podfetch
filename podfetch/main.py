@@ -59,13 +59,13 @@ def main(argv=None):
     parser = setup_argparser()
     setup_command_parsers(parser)
     args = parser.parse_args(argv)
-    cfg = read_config()
     configure_logging(
         verbose=args.verbose,
         quiet=args.quiet,
         logfile=args.logfile,
         log_level=args.log_level,
     )
+    cfg = read_config(extra_config_paths=[args.config,])
 
     try:
         rv = run(args, cfg)
@@ -179,7 +179,7 @@ def setup_argparser():
     parser.add_argument(
         '--log-level',
         action=LogLevelAction,
-        default=DEFAULT_LOG_LEVEL,
+        default=logging.WARNING,
         choices=loglevels.keys(),
         help=('Controls the log-level for LOGFILE.'
             ' Defaults to {default}.').format(default=DEFAULT_LOG_LEVEL),
@@ -247,14 +247,17 @@ def setup_command_parsers(parent_parser):
         header = 'Podfetch Subscriptions'
         out.write('{}\n'.format(header))
         out.write('{}\n'.format('-' * len(header)))
-        if not args.subscription_names:
+        if not args.subscription_name:
             for subscription in app.iter_subscriptions():
                 out.write('{}\n'.format(subscription.name))
         else:
             for subscription in app.iter_subscriptions():
-                if subscription.name in args.subscription_names:
+                if subscription.name in args.subscription_name:
                     out.write('{}\n'.format(subscription.name))
                     # TODO list downloaded episodes
+
+        return EXIT_OK
+
     ls.set_defaults(func=do_ls)
 
     # add ---------------------------------------------------------------------
@@ -337,10 +340,10 @@ def read_config(extra_config_paths=None, require=False):
         ``ValueError`` is raised if ``require`` is *True*
         and if no config-file was found.
     '''
-    extra = extra_config_paths or []
+    extra = [p for p in extra_config_paths if p]
     paths = [DEFAULT_CONFIG_PATH,] + extra
     cfg = configparser.ConfigParser()
-    read_from = cfg.read(*paths)
+    read_from = cfg.read(paths)
     if not read_from and require:
         raise ValueError(('No configuration file found.'
             ' Searchpath: {!r}.').format(':'.join(paths)))
@@ -383,7 +386,7 @@ def configure_logging(quiet=False, verbose=False,
 
     if logfile:
         if logfile == 'syslog':
-            logfile_hdl = handlers.SyslogHandler(address='/dev/log')
+            logfile_hdl = handlers.SysLogHandler(address='/dev/log')
             logfile_hdl.setFormatter(logging.Formatter(SYSLOG_FMT))
         else:
             logfile_hdl = handlers.RotatingFileHandler(logfile)

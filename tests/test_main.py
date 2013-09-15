@@ -7,8 +7,14 @@ test_main
 
 Tests for `main` module (command line interface).
 '''
+try:
+    import configparser  # python 3
+except ImportError:
+    import ConfigParser as configparser  # python 2
+
 import pytest
 import mock
+from mock import call
 import feedparser
 
 from podfetch.application import Podfetch
@@ -18,7 +24,7 @@ from podfetch import model
 from tests import common
 
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def mock_app(tmpdir):
     config_dir = tmpdir.mkdir('config')
     content_dir = tmpdir.mkdir('content')
@@ -28,7 +34,9 @@ def mock_app(tmpdir):
     app.update_all = mock.MagicMock()
     app.update_one = mock.MagicMock()
     app.add_subscription = mock.MagicMock()
-
+    app.remove_subscription = mock.MagicMock()
+    app.purge_all = mock.MagicMock()
+    app.purge_one = mock.MagicMock()
 
     return app
 
@@ -85,6 +93,43 @@ def test_add_no_update(monkeypatch, mock_app):
     mock_app.add_subscription.assert_called_once_with(
         url, name=name, max_episodes=max_epis)
     assert not mock_app.update_one.called
+
+
+def test_custom_config(monkeypatch):
+    monkeypatch.setattr(main, 'read_config', mock.MagicMock())
+    cfg_path = '/custom/config/file'
+    argv = ['--config', cfg_path]
+
+    main.main(argv=argv)
+
+    main.read_config.assert_called_once()
+    expected_call = call(extra_config_paths=[cfg_path])
+    assert expected_call in main.read_config.mock_calls
+
+
+def test_read_cfg(tmpdir, monkeypatch):
+    '''Assert that a custom config (partially) overrides the default.'''
+    default_cache_dir = '/default/cache/dir'
+    override_content_dir = '/custom/content_dir'
+
+    # control what's in the default file
+    default_config_path = str(tmpdir.join('default.conf'))
+    with open(default_config_path, 'w') as f:
+        f.write('[default]\n')
+        f.write('content_dir = default_content_dir\n')
+        f.write('cache_dir = {}\n'.format(default_cache_dir))
+    monkeypatch.setattr(main, 'DEFAULT_CONFIG_PATH', default_config_path)
+
+    # the custom config, overrides _one_ setting
+    cfg_path = str(tmpdir.join('custom.conf'))
+    with open(cfg_path, 'w') as f:
+        f.write('[default]\n')
+        f.write('content_dir = {}\n'.format(override_content_dir))
+
+    cfg = main.read_config(extra_config_paths=[cfg_path])
+
+    assert cfg.get('default', 'content_dir') == override_content_dir
+    assert cfg.get('default', 'cache_dir') == default_cache_dir
 
 
 def test_remove():
