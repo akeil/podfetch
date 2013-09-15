@@ -98,7 +98,9 @@ class Podfetch(object):
             An *Error Code* describing the result.
         '''
         error_count = 0
+        total_count = 0
         for subscription in self.iter_subscriptions():
+            total_count += 1
             try:
                 rv = self._update_subscription(subscription)
             except Exception as e:
@@ -107,9 +109,9 @@ class Podfetch(object):
                 error_count += 1
 
         self.hooks.run_hooks(UPDATES_COMPLETE)
-
+        log.info('Processed {} subscriptions, {} errors.'.format(total_count, error_count))
         if error_count:
-            if error_count == len(feed_urls):
+            if error_count == total_count:
                 return ALL_FAILED
             else:
                 return SOME_FAILED
