@@ -11,6 +11,7 @@ try:
     import configparser  # python 3
 except ImportError:
     import ConfigParser as configparser  # python 2
+import argparse
 
 import pytest
 import mock
@@ -98,7 +99,7 @@ def test_add_no_update(monkeypatch, mock_app):
 def test_custom_config(monkeypatch):
     monkeypatch.setattr(main, 'read_config', mock.MagicMock())
     cfg_path = '/custom/config/file'
-    argv = ['--config', cfg_path]
+    argv = ['--config', cfg_path, 'update']
 
     main.main(argv=argv)
 
