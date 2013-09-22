@@ -142,8 +142,13 @@ class Subscription(object):
 
         self.index = {}
         for line in lines:
-            id_, local_path = line.split('\t')
-            self.index[id_] = local_path
+            parts = line.split('\t')
+            try:
+                id_ = parts[0].strip()
+                local_path = parts[1].strip()
+                self.index[id_] = local_path
+            except IndexError:
+                log.error('Found invalid entry in index file - ignoring.')
 
     def _save_index(self):
         if self.index:

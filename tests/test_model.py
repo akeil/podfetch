@@ -142,6 +142,17 @@ def test_save_and_load_index(sub):
     assert not sub._in_index(DummyEntry(id='does not exist'), 0)
 
 
+def test_load_index_ignore_empty_lines(sub):
+    with open(sub.index_file, 'w') as f:
+        for i in range(5):
+            f.write('url{}\tlocal-file\n'.format(i))
+            f.write('\n')  # empty line
+
+    sub._load_index()
+    assert 'url1' in sub.index
+    assert len(sub.index) == 5
+
+
 def test_write_read_cached_headers(sub):
     '''Write ``etag`` and ``modified`` headers to cache and retrieve them
     correctly.'''
