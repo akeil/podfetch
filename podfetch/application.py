@@ -274,7 +274,7 @@ class HookManager(object):
         }
 
     def run_hooks(self, event, *args):
-        log.info('Run hooks for event {!r}.'.format(event))
+        log.debug('Run hooks for event {!r}.'.format(event))
         for hook_executable in self.discover_hooks(event):
             self._run_one_hook(event, hook_executable, *args)
 
@@ -296,7 +296,7 @@ class HookManager(object):
 
         name = os.path.basename(executable)
         if exit_code == 0:
-            log.info(('Successfully ran hook {!r}'
+            log.debug(('Successfully ran hook {!r}'
                 ' on event {!r}.').format(name, event))
         else:
             log.error(('Hook {!r} exited with non-zero exit status ({})'

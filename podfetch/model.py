@@ -46,6 +46,7 @@ SUPPORTED_CONTENT = {
     'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
     'audio/ogg': ContentTypeInfo(file_ext='ogg'),
     'audio/flac': ContentTypeInfo(file_ext='flac'),
+    'video/mpeg': ContentTypeInfo(file_ext='mp4')
 }
 
 
@@ -231,6 +232,15 @@ class Subscription(object):
         author = ''
         published = ''
 
+        # some feeds do not have an entry-id
+        # we need the ID for index and filename
+        if entry.get('id') is None:
+            entry.id = '{}.{}'.format(
+                ''.join(str(x) for x in entry.published_parsed),
+                entry.get('title', '')
+            )
+            log.debug('Missing entry-ID, using {!r} instead.'.format(entry.id))
+
         enclosures = entry.get('enclosures', [])
         for index, enclosure in enumerate(enclosures):
             if self._accept(entry, enclosure, index):
@@ -243,7 +253,7 @@ class Subscription(object):
 
     def _accept(self, entry, enclosure, enclosure_num):
         content_type = enclosure.get('type', '')
-        if not content_type.startswith('audio'):
+        if not content_type.lower() in SUPPORTED_CONTENT:
             return False
 
         if self._in_index(entry, enclosure_num):

@@ -32,10 +32,13 @@ def sub(tmpdir):
 
 
 def with_dummy_feed(monkeypatch, status=200, href=None,
-    return_etag=None, return_modified=None):
+    return_etag=None, return_modified=None, feed_data=None):
+
+    if feed_data is None:
+        feed_data = common.FEED_DATA
 
     def mock_fetch_feed(url, etag=None, modified=None):
-        feed = feedparser.parse(common.FEED_DATA)
+        feed = feedparser.parse(feed_data)
         original_get = feed.get
 
         def override_get(what, fallback=None):
@@ -56,6 +59,15 @@ def with_dummy_feed(monkeypatch, status=200, href=None,
 
     monkeypatch.setattr(model, '_fetch_feed', mock_fetch_feed)
 
+
+def with_mock_download(monkeypatch):
+
+    def create_file(url, dst):
+        with open(dst, 'w') as f:
+            f.write('something')
+
+    monkeypatch.setattr(model, 'download',
+        mock.MagicMock(side_effect=create_file))
 
 class DummyEntry(object):
 
@@ -186,12 +198,15 @@ def test_accept_enclosure(sub):
     not_existing = DummyEntry(id='exists-not')
 
     enclosure = DummyEnclosure(type='audio/mpeg')
-    non_audio_enclosure = DummyEnclosure(type='video/mpeg')
+    video_enclosure = DummyEnclosure(type='video/mpeg')
     unknown_enclosure = DummyEnclosure()
+    unsupported_enclosure = DummyEnclosure(type='image/jpeg')
+
     assert not sub._accept(existing, enclosure, 0)
     assert sub._accept(existing, enclosure, 1)
     assert sub._accept(not_existing, enclosure, 0)
-    assert not sub._accept(not_existing, non_audio_enclosure, 0)
+    assert sub._accept(not_existing, video_enclosure, 0)
+    assert not sub._accept(not_existing, unsupported_enclosure, 0)
     assert not sub._accept(not_existing, unknown_enclosure, 0)
 
 
@@ -399,6 +414,26 @@ def test_file_extension_for_mime():
     for mime in unsupported:
         with pytest.raises(ValueError):
             model.file_extension_for_mime(mime)
+
+
+def test_feeditem_no_ids(sub, monkeypatch):
+    '''Handling a RSS-feed where the //item/guid is missing.
+    Nornally, entry.id is used to generate the filename and
+    as the key to identify an entry in the local index.
+
+    Test that we download the items ok - any only once'''
+    with_dummy_feed(monkeypatch, feed_data=common.FEED_NO_IDS)
+    with_mock_download(monkeypatch)
+
+    assert len(sub.index) == 0
+    sub.update()
+    new_items = len(sub.index)
+    assert new_items > 0
+
+    model.download.reset_mock()
+    sub.update()
+    assert not model.download.called
+    assert len(sub.index) == new_items
 
 
 if __name__ == '__main__':

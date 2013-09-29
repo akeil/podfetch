@@ -70,6 +70,7 @@ def main(argv=None):
     try:
         rv = run(args, cfg)
     except KeyboardInterrupt:
+        log.info('Keyboard Interrupt.')
         raise
     except Exception as e:
         log.error(e)
@@ -78,7 +79,7 @@ def main(argv=None):
         # TODO perform cleanup
         pass
 
-    log.info('Exit with return code: {}.'.format(rv))
+    log.debug('Exit with return code: {}.'.format(rv))
     return rv
 
 
