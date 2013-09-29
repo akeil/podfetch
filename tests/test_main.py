@@ -110,16 +110,25 @@ def test_custom_config(monkeypatch):
 
 def test_read_cfg(tmpdir, monkeypatch):
     '''Assert that a custom config (partially) overrides the default.'''
+    system_wide_template = 'system-wide-template'
     default_cache_dir = '/default/cache/dir'
     override_content_dir = '/custom/content_dir'
 
-    # control what's in the default file
+    # control what's in the default files
+
+    system_config_path = str(tmpdir.join('system.conf'))
+    with open(system_config_path, 'w') as f:
+        f.write('[default]\n')
+        f.write('filename_template = {}\n'.format(system_wide_template))
+        f.write('cache_dir = system-wide-cache-dir\n')
+    monkeypatch.setattr(main, 'SYSTEM_CONFIG_PATH', system_config_path)
+
     default_config_path = str(tmpdir.join('default.conf'))
     with open(default_config_path, 'w') as f:
         f.write('[default]\n')
         f.write('content_dir = default_content_dir\n')
         f.write('cache_dir = {}\n'.format(default_cache_dir))
-    monkeypatch.setattr(main, 'DEFAULT_CONFIG_PATH', default_config_path)
+    monkeypatch.setattr(main, 'DEFAULT_USER_CONFIG_PATH', default_config_path)
 
     # the custom config, overrides _one_ setting
     cfg_path = str(tmpdir.join('custom.conf'))
@@ -131,6 +140,7 @@ def test_read_cfg(tmpdir, monkeypatch):
 
     assert cfg.get('default', 'content_dir') == override_content_dir
     assert cfg.get('default', 'cache_dir') == default_cache_dir
+    assert cfg.get('default', 'filename_template') == system_wide_template
 
 
 def test_remove():

@@ -29,7 +29,8 @@ SYSLOG_FMT = '%(levelname)s [%(name)s]: %(message)s'
 LOGFILE_FMT = '%(asctime)s %(levelname)s [%(name)s]: %(message)s'
 DEFAULT_LOG_LEVEL = 'warning'
 
-DEFAULT_CONFIG_PATH = os.path.expanduser(
+SYSTEM_CONFIG_PATH = '/etc/podfetch.conf'
+DEFAULT_USER_CONFIG_PATH = os.path.expanduser(
     '~/.config/podfetch/podfetch.conf')
 
 
@@ -351,7 +352,7 @@ def read_config(extra_config_paths=None, require=False):
         and if no config-file was found.
     '''
     extra = [p for p in extra_config_paths if p]
-    paths = [DEFAULT_CONFIG_PATH,] + extra
+    paths = [SYSTEM_CONFIG_PATH, DEFAULT_USER_CONFIG_PATH,] + extra
     cfg = configparser.ConfigParser()
     read_from = cfg.read(paths)
     if not read_from and require:
