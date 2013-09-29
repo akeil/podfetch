@@ -36,4 +36,24 @@ The configuration file looks like this (with default values)::
     # from RSS/Atom-Feeds here.
     cache_dir = ~/.cache/podfetch
 
+    # This application-wide setting tells podfetch
+    # how to construct filenames for downloaded episodes.
+    # The following variables are supported:
+    #   {subscription_name}: Subscription Name
+    #   {pub_date}:     Date in format yyyy-mm-dd
+    #   {year}:         Year from Pub-Date in 4-digit format
+    #   {month}:        Month from Pub-Date in 2-digit format
+    #   {day}:          Day from Pub-Date in 2-digit format
+    #   {hour}:         Hour from Pub-Date in 2-digit format
+    #   {minute}:       Minute from Pub-Date in 2-digit format
+    #   {second}:       Second from Pub-Date in 2-digit format
+    #   {title}:        Entry (Episode) title
+    #   {feed_title}:   Feed title
+    #   {id}:           Id for the Episode
+    #   {ext}:          File extension.
+    #   {kind}:         audio or video
+    # Specifying an extension ub the template is optional; missing extension
+    # is added automatically
+    filename_template = {pub_date}-{title}
+
 **You do not have to create a config file if the defaults are ok.**
