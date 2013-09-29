@@ -13,6 +13,8 @@ import stat
 import logging
 import tempfile
 import shutil
+import itertools
+import re
 from collections import namedtuple
 from datetime import datetime
 
@@ -170,6 +172,7 @@ class Subscription(object):
 
     def _save_index(self):
         if self.index:
+            require_directory(os.path.dirname(self.index_file))
             with open(self.index_file, 'w') as f:
                 for id_, local_path in self.index.items():
                     f.write('{}\t{}\n'.format(id_, local_path))
@@ -263,8 +266,6 @@ class Subscription(object):
         multiple_enclosures = len(enclosures) > 1
         for index, enclosure in enumerate(enclosures):
             if self._accept(entry, enclosure, index):
-#                filename = generate_filename_for_enclosure(
-#                    entry, index, enclosure)
                 filename = self._generate_enclosure_filename(
                     feed, entry, enclosure,
                     index=index if multiple_enclosures else None,
@@ -398,9 +399,6 @@ def file_extension_for_mime(mime):
         return SUPPORTED_CONTENT[mime.lower()].file_ext
     except (KeyError, AttributeError):
         raise ValueError('Unupported content type {!r}.'.format(mime))
-
-import itertools
-import re
 
 
 def pretty_filename(unpretty):

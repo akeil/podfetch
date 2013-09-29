@@ -182,6 +182,15 @@ def test_save_and_load_index(sub):
     assert not sub._in_index(DummyEntry(id='does not exist'), 0)
 
 
+def test_save_index_create_directory(sub, tmpdir):
+    '''Assert that the directory for the index file is created
+    if it does not exist.'''
+    sub.index_file = str(tmpdir.join('does-not-exist').join('index-file'))
+    sub.index['something'] = 'something'
+    sub._save_index()
+    assert os.path.isfile(sub.index_file)
+
+
 def test_load_index_ignore_empty_lines(sub):
     with open(sub.index_file, 'w') as f:
         for i in range(5):
