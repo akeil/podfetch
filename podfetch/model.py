@@ -323,7 +323,7 @@ class Subscription(object):
             filename = '{}-{:0>2d}'.format(filename, index)
 
         filename = '{}.{}'.format(filename, ext)
-        return filename
+        return safe_filename(pretty_filename(filename))
 
     def _get_cached_headers(self):
 
@@ -399,6 +399,44 @@ def file_extension_for_mime(mime):
     except (KeyError, AttributeError):
         raise ValueError('Unupported content type {!r}.'.format(mime))
 
+import itertools
+import re
+
+
+def pretty_filename(unpretty):
+    if unpretty is None:
+        return None
+
+    pretty = unpretty
+
+    replacements = [
+        (' ', '_'),
+        (':', '_'),
+        (',', '_'),
+        (';', '_'),
+        ('/', '_'),
+        ('{', '_'),
+        ('}', '_'),
+        ('&', '+'),
+        ('Ä', 'Ae'),
+        ('Ö', 'Oe'),
+        ('Ü', 'Ue'),
+        ('ä', 'ae'),
+        ('ö', 'oe'),
+        ('ü', 'ue'),
+        ('ß', 'ss'),
+    ]
+    deletions = ['*', '?', '!', '"', '\'', '^', '\\', '´', '`', '<', '>']
+
+    for text, replacement in itertools.chain(replacements, [(c, '') for c in deletions]):
+        pretty = pretty.replace(text, replacement)
+
+    separators = ['-', '_', '.']
+    for sep in separators:
+        pattern = '[{}]+'.format(sep)
+        pretty = re.sub(pattern, sep, pretty)
+
+    return pretty
 
 def safe_filename(unsafe):
     '''Convert a string so that it is save for use as a filename.

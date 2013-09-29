@@ -21,6 +21,7 @@ from podfetch.exceptions import FeedNotFoundError
 
 from tests import common
 
+
 @pytest.fixture
 def sub(tmpdir):
     config_dir = tmpdir.mkdir('config')
@@ -415,8 +416,8 @@ def test_generate_enclosure_filename_template(sub):
     assert gen(1).endswith('01.mp3')
 
     # timestamp
-    sub.filename_template = '{year}-{month}-{day} {hour}-{minute}-{second}'
-    expected = '2001-02-03 04-05-06.mp3'
+    sub.filename_template = '{year}-{month}-{day}T{hour}-{minute}-{second}'
+    expected = '2001-02-03T04-05-06.mp3'
     assert gen(None) == expected
 
     # title and replace forbidden chars
@@ -450,6 +451,26 @@ def test_safe_filename():
     ]
     for unsafe, expected in cases:
         assert model.safe_filename(unsafe) == expected
+
+
+def test_pretty_filename():
+    cases = [
+        ('', ''),
+        (None, None),
+        ('pretty', 'pretty'),
+        ('replace whitespace', 'replace_whitespace'),
+        ('abcäöüßabc', 'abcaeoeuessabc'),
+        ('multi _ separator', 'multi_separator'),
+        ('abcÄÜÖabc', 'abcAeUeOeabc'),
+        ('what?', 'what'),
+        ('***', ''),
+        ('This{and}That', 'This_and_That'),
+        ('abc/def', 'abc_def'),
+        ('a&b', 'a+b'),
+        ('something, something', 'something_something'),
+    ]
+    for unpretty, expected in cases:
+        assert model.pretty_filename(unpretty) == expected
 
 
 def test_file_extension_for_mime():
