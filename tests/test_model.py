@@ -69,28 +69,51 @@ def with_mock_download(monkeypatch):
     monkeypatch.setattr(model, 'download',
         mock.MagicMock(side_effect=create_file))
 
-class DummyEntry(object):
+
+class _Dummy(object):
 
     def __init__(self, **kwargs):
-        self.id = kwargs.get('id')
-        self.enclosures = kwargs.get('enclosures', [])
-        self.published_parsed = kwargs.get(
-            'published_parsed',(2013,9,10,11,12,13,0))
         self.data = kwargs
+        self.data.update([
+            (k,v) for k,v in self.__class__.defaults.items()
+            if k not in self.data
+        ])
+
+    def __getattribute__(self, name):
+        if name != 'data':
+            try:
+                return self.data[name]
+            except KeyError:
+                return object.__getattribute__(self, name)
+        else:
+            return object.__getattribute__(self, name)
 
     def get(self, name, fallback=None):
         return self.data.get(name, fallback)
 
 
-class DummyEnclosure(object):
+class DummyFeed(_Dummy):
 
-    def __init__(self, **kwargs):
-        self.type = kwargs.get('type')
-        self.href = kwargs.get('href', 'http://example.com/download')
-        self.data = kwargs
+    defaults = {
+        'title': None,
+        'author': None,
+        'entries': [],
+    }
 
-    def get(self, name, fallback=None):
-        return self.data.get(name, fallback)
+class DummyEntry(_Dummy):
+
+    defaults = {
+        'id': None,
+        'enclosures': [],
+        'published_parsed': (2013,9,10,11,12,13,0),
+    }
+
+
+class DummyEnclosure(_Dummy):
+
+    defaults = {
+        'href': 'http://example.com/download',
+    }
 
 
 def test_load_subscription_from_file(tmpdir):
@@ -223,6 +246,7 @@ def test_process_feed_entry(monkeypatch, sub):
         DummyEnclosure(type='text/plain', href=href3),  # will not be accepted
     ]
     entry = DummyEntry(id='test-id', enclosures=enclosures)
+    feed = DummyFeed(title='feed-title', entries=[entry,])
     requested_urls = []
 
     def mock_download(url, dst):
@@ -231,7 +255,7 @@ def test_process_feed_entry(monkeypatch, sub):
             f.write('something')
     monkeypatch.setattr(model, 'download', mock_download)
 
-    sub._process_feed_entry(entry)
+    sub._process_feed_entry(feed, entry)
 
     assert sub._in_index(entry, 0)
     assert sub._in_index(entry, 1)
@@ -369,16 +393,34 @@ def test_download_error(sub, monkeypatch):
     assert rv == model.ALL_EPISODES_FAILED
 
 
-def test_generate_enclosure_filename():
+def test_generate_enclosure_filename_template(sub):
     enclosure = DummyEnclosure(type='audio/mpeg', href='does-not-matter')
-    entry = DummyEntry(
-        id='the-id',
-        published_parsed=(2013,9,10,11,12,13,0),
-        enclosures=[enclosure,],
+    entry = DummyEntry(title='entry/title', enclosures=[enclosure],
+        published_parsed=(2001,2,3,4,5,6,0)
     )
+    feed = DummyFeed(title='feed-title', entries=[entry,])
 
-    filename = model.generate_filename_for_enclosure(entry, 0, enclosure)
-    assert filename == '2013-09-10_11-12-13_the-id_0.mp3'
+    gen = lambda x: sub._generate_enclosure_filename(
+        feed, entry, enclosure, index=x)
+
+    sub.filename_template = 'constant'
+    assert gen(None) == 'constant.mp3'
+
+    # ext in template
+    sub.filename_template = 'something.{ext}'
+    assert gen(1).endswith('01.mp3')
+
+    # timestamp
+    sub.filename_template = '{year}-{month}-{day} {hour}-{minute}-{second}'
+    expected = '2001-02-03 04-05-06.mp3'
+    assert gen(None) == expected
+
+    # title and replace forbidden chars
+    sub.filename_template = '{title}'
+    assert '/' not in gen(None)
+    assert gen(None).startswith('entry')
+
+
 
 
 def test_safe_filename():

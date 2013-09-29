@@ -14,6 +14,7 @@ import logging
 import tempfile
 import shutil
 from collections import namedtuple
+from datetime import datetime
 
 try:
     import configparser  # python 3.x
@@ -49,6 +50,9 @@ SUPPORTED_CONTENT = {
     'video/mpeg': ContentTypeInfo(file_ext='mp4')
 }
 
+# for generating enclosure-filenames
+DEFAULT_FILENAME_TEMPLATE = '{pub_date}_{id}'
+
 
 class Subscription(object):
     '''Represents a RSS/Atom feed that the user has subscribed.
@@ -81,6 +85,7 @@ class Subscription(object):
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
         self.config_dir = config_dir
+        self.filename_template = None
 
         self.index_file = os.path.join(
             self.cache_dir, '{}.index'.format(self.name))
@@ -210,7 +215,7 @@ class Subscription(object):
         errors = 0
         for index, entry in enumerate(feed.entries):
             try:
-                self._process_feed_entry(entry)
+                self._process_feed_entry(feed, entry)
                 num_processed = index + 1
                 if num_processed == self.max_episodes:
                     break
@@ -226,10 +231,11 @@ class Subscription(object):
         else:
             return OK
 
-    def _process_feed_entry(self, entry):
-        # metadata
-        title = entry.get('title', '')
-        author = ''
+    def _process_feed_entry(self, feed, entry):
+        metadata = {
+            'title': entry.get('title', ''),
+            'author': entry.get('author', ''),
+        }
         published = ''
 
         # some feeds do not have an entry-id
@@ -242,10 +248,15 @@ class Subscription(object):
             log.debug('Missing entry-ID, using {!r} instead.'.format(entry.id))
 
         enclosures = entry.get('enclosures', [])
+        multiple_enclosures = len(enclosures) > 1
         for index, enclosure in enumerate(enclosures):
             if self._accept(entry, enclosure, index):
-                filename = generate_filename_for_enclosure(
-                    entry, index, enclosure)
+#                filename = generate_filename_for_enclosure(
+#                    entry, index, enclosure)
+                filename = self._generate_enclosure_filename(
+                    feed, entry, enclosure,
+                    index=index if multiple_enclosures else None,
+                )
                 require_directory(self.content_dir)
                 dst_path = os.path.join(self.content_dir, filename)
                 download(enclosure.href, dst_path)
@@ -260,6 +271,45 @@ class Subscription(object):
             return False
 
         return True
+
+    def _generate_enclosure_filename(self, feed, entry, enclosure, index=None):
+        template = self.filename_template or DEFAULT_FILENAME_TEMPLATE
+
+        today = datetime.today().timetuple()
+        pubdate = entry.published_parsed or today
+        ext = file_extension_for_mime(enclosure.type)
+        kind = enclosure.type.split('/')[0]
+        values = {
+            'subscription_name': self.name,
+            'pub_date': '{}-{:0>2d}-{:0>2d}'.format(*pubdate[0:3]),
+            'year': '{:0>4d}'.format(pubdate[0]),
+            'month': '{:0>2d}'.format(pubdate[1]),
+            'day': '{:0>2d}'.format(pubdate[2]),
+            'hour': '{:0>2d}'.format(pubdate[3]),
+            'minute': '{:0>2d}'.format(pubdate[4]),
+            'second': '{:0>2d}'.format(pubdate[5]),
+            'title': entry.get('title', ''),
+            'feed_title': feed.get('title', self.name),
+            'id': entry.id,
+            'ext': ext,
+            'kind': kind,
+        }
+
+        filename = safe_filename(template.format(**values))
+
+        # template may or may not include file-ext
+        #  - make sure we append a file-extension
+        #  - maybe insert the index between ext and basename
+        basename, ext_from_template = os.path.splitext(filename)
+        known_exts = [x.file_ext for x in SUPPORTED_CONTENT.values()]
+        if ext_from_template in known_exts:
+            filename = basename
+
+        if index:
+            filename = '{}-{:0>2d}'.format(filename, index)
+
+        filename = '{}.{}'.format(filename, ext)
+        return filename
 
     def _get_cached_headers(self):
 
@@ -347,34 +397,6 @@ def safe_filename(unsafe):
     safe = safe.replace('\\', '_')
     safe = safe.replace(':', '_')
     return safe
-
-
-def generate_filename_for_enclosure(entry, index, enclosure):
-    name_template = '{timestamp}_{name}_{index}.{ext}'
-    published = entry.published_parsed
-    timestamp = ('{year}-{month:0>2d}-{day:0>2d}'
-        '_{hour:0>2d}-{minute:0>2d}-{second:0>2d}').format(
-        year=published[0],
-        month=published[1],
-        day=published[2],
-        hour=published[3],
-        minute=published[4],
-        second=published[5],
-    )
-
-    basename, ext = os.path.splitext(entry.id)
-    known_extensions = ('.mp3', '.ogg', '.flac')
-    if ext in known_extensions:
-        name = basename
-    else:
-        name = entry.id
-
-    return safe_filename( name_template.format(
-        timestamp=timestamp,
-        name=name,
-        index=index,
-        ext=file_extension_for_mime(enclosure.type)
-    ))
 
 
 def download(download_url, dst_path):
