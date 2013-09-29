@@ -78,14 +78,16 @@ class Subscription(object):
     '''
 
     def __init__(self, name, feed_url, config_dir, content_dir, cache_dir,
-        max_episodes=-1):
+        max_episodes=-1, filename_template=None, app_filename_template=None):
         self.name = name
         self.feed_url = feed_url
         self.content_dir = os.path.join(content_dir, self.name)
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
         self.config_dir = config_dir
-        self.filename_template = None
+        self.filename_template = filename_template
+        self.app_filename_template = app_filename_template
+
 
         self.index_file = os.path.join(
             self.cache_dir, '{}.index'.format(self.name))
@@ -100,9 +102,13 @@ class Subscription(object):
             The directory in which the ini-file is placed.
         '''
         cfg = configparser.ConfigParser()
-        cfg.add_section('subscription')
-        cfg.set('subscription', 'url', self.feed_url)
-        cfg.set('subscription', 'max_episodes', str(self.max_episodes))
+        sec = 'subscription'
+        cfg.add_section(sec)
+        cfg.set(sec, 'url', self.feed_url)
+        cfg.set(sec, 'max_episodes', str(self.max_episodes))
+        if self.filename_template:
+            cfg.set(sec, 'filename_template', self.filename_template)
+
         filename = os.path.join(self.config_dir, self.name)
         log.debug(
             'Save Subscription {!r} to {!r}.'.format(self.name, filename))
@@ -127,13 +133,19 @@ class Subscription(object):
 
         log.debug('Read subscription from {!r}.'.format(path))
         config_dir, name = os.path.split(path)
-        feed_url = cfg.get('subscription', 'url')
+        sec = 'subscription'
+        feed_url = cfg.get(sec, 'url')
         try:
-            max_episodes = cfg.getint('subscription', 'max_episodes')
+            max_episodes = cfg.getint(sec, 'max_episodes')
         except configparser.NoOptionError:
             max_episodes = -1
+        try:
+            filename_template = cfg.get(sec, 'filename_template')
+        except configparser.NoOptionError:
+            filename_template = None
+
         return cls(name, feed_url, config_dir, content_dir, cache_dir,
-            max_episodes=max_episodes)
+            max_episodes=max_episodes, filename_template=filename_template)
 
 
     def _load_index(self):
@@ -273,7 +285,9 @@ class Subscription(object):
         return True
 
     def _generate_enclosure_filename(self, feed, entry, enclosure, index=None):
-        template = self.filename_template or DEFAULT_FILENAME_TEMPLATE
+        template = self.filename_template \
+                   or self.app_filename_template \
+                   or DEFAULT_FILENAME_TEMPLATE
 
         today = datetime.today().timetuple()
         pubdate = entry.published_parsed or today

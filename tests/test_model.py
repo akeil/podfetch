@@ -123,6 +123,7 @@ def test_load_subscription_from_file(tmpdir):
         '[subscription]',
         'url=http://example.com/feed',
         'max_episodes = 30',
+        'filename_template = template',
     ]))
 
     sub = Subscription.from_file(str(load_from), 'content_dir', 'cache_dir')
@@ -130,6 +131,7 @@ def test_load_subscription_from_file(tmpdir):
     assert sub.name == 'the_name'
     assert sub.feed_url == 'http://example.com/feed'
     assert sub.max_episodes == 30
+    assert sub.filename_template == 'template'
 
 
 def test_load_nonexisting_raises_error():
@@ -142,6 +144,7 @@ def test_load_nonexisting_raises_error():
 
 def test_save(tmpdir, sub):
     sub.max_episodes = 123
+    sub.filename_template = 'template'
     sub.save()
     filename = os.path.join(sub.config_dir, 'name')
     with open(filename) as f:
@@ -149,6 +152,7 @@ def test_save(tmpdir, sub):
 
     assert 'http://example.com' in ''.join(lines)
     assert '123' in ''.join(lines)
+    assert 'template' in ''.join(lines)
 
 
 def test_save_and_load_index(sub):
@@ -421,6 +425,19 @@ def test_generate_enclosure_filename_template(sub):
     assert gen(None).startswith('entry')
 
 
+def test_filename_template_from_app_config(sub):
+    '''If no template is set for the subscription,
+    use template from app-config'''
+    sub.filename_template = ''
+    sub.app_filename_template = 'app-template'
+    feed = DummyFeed()
+    entry = DummyEntry()
+    enclosure = DummyEnclosure(type='audio/mpeg')
+    gen = lambda: sub._generate_enclosure_filename(feed, entry, enclosure)
+
+    assert gen() == 'app-template.mp3'
+    sub.filename_template = 'specific'
+    assert gen() == 'specific.mp3'
 
 
 def test_safe_filename():

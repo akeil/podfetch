@@ -77,16 +77,20 @@ class Podfetch(object):
     '''The main application class.
     Used to manage and update subscriptions.'''
 
-    def __init__(self, config_dir, content_dir, cache_dir):
+    def __init__(self, config_dir, content_dir, cache_dir,
+        filename_template=None):
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
         self.content_dir = content_dir
         self.cache_dir = cache_dir
         self.hooks = HookManager(config_dir)
+        self.filename_template = filename_template
 
     def _load_subscription(self, name):
         filename = os.path.join(self.subscriptions_dir, name)
-        return Subscription.from_file(
+        sub = Subscription.from_file(
             filename, self.content_dir, self.cache_dir)
+        sub.app_filename_template = self.filename_template
+        return sub
 
     def update_all(self):
         '''Update all subscriptions.
