@@ -17,6 +17,7 @@ import itertools
 import re
 from collections import namedtuple
 from datetime import datetime
+import json
 
 try:
     import configparser  # python 3.x
@@ -82,9 +83,11 @@ class Subscription(object):
     '''
 
     def __init__(self, name, feed_url, config_dir, content_dir, cache_dir,
-        max_episodes=-1, filename_template=None, app_filename_template=None):
+        title=None, max_episodes=-1,
+        filename_template=None, app_filename_template=None):
         self.name = name
         self.feed_url = feed_url
+        self.title = title or name
         self.content_dir = os.path.join(content_dir, self.name)
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
@@ -92,10 +95,9 @@ class Subscription(object):
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
 
-
         self.index_file = os.path.join(
-            self.cache_dir, '{}.index'.format(self.name))
-        self.index = {}
+            self.cache_dir, '{}.json'.format(self.name))
+        self.episodes = []
         self._load_index()
 
     def save(self):
@@ -108,10 +110,14 @@ class Subscription(object):
         cfg = configparser.ConfigParser()
         sec = 'subscription'
         cfg.add_section(sec)
-        cfg.set(sec, 'url', self.feed_url)
-        cfg.set(sec, 'max_episodes', str(self.max_episodes))
+
+        s = lambda k, v: cfg.set(sec, k,v)
+        s('url', self.feed_url)
+        s('max_episodes', str(self.max_episodes))
+        if self.title:
+            s('title', self.title)
         if self.filename_template:
-            cfg.set(sec, 'filename_template', self.filename_template)
+            s('filename_template', self.filename_template)
 
         filename = os.path.join(self.config_dir, self.name)
         log.debug(
@@ -147,63 +153,41 @@ class Subscription(object):
             filename_template = cfg.get(sec, 'filename_template')
         except configparser.NoOptionError:
             filename_template = None
+        try:
+            title = cfg.get(sec, 'title')
+        except configparser.NoOptionError:
+            title = None
 
         return cls(name, feed_url, config_dir, content_dir, cache_dir,
-            max_episodes=max_episodes, filename_template=filename_template)
-
+            title=title, max_episodes=max_episodes,
+            filename_template=filename_template
+        )
 
     def _load_index(self):
-        '''Load the index-file for this subscription.'''
         try:
             with open(self.index_file) as f:
-                lines = f.readlines()
+                data = json.load(f)
         except IOError as e:
             if e.errno == os.errno.ENOENT:
-                lines = []
+                data = []
             else:
                 raise
 
-        self.index = {}
-        for line in lines:
-            parts = line.split('\t')
-            try:
-                id_ = parts[0].strip()
-                local_path = parts[1].strip()
-                self.index[id_] = local_path
-            except IndexError:
-                log.error('Found invalid entry in index file - ignoring.')
+        self.episodes = [Episode.from_dict(self, d) for d in data]
 
     def _save_index(self):
         '''Save the index file for this subscription to disk.'''
-        if self.index:
+        data = [e.as_dict() for e in self.episodes]
+        if data:
             require_directory(os.path.dirname(self.index_file))
             with open(self.index_file, 'w') as f:
-                for id_, local_path in self.index.items():
-                    f.write('{}\t{}\n'.format(id_, local_path))
+                json.dump(data, f)
         else:
             try:
                 os.unlink(self.index_file)
             except OSError as e:
                 if e.errno != os.errno.ENOENT:
                     raise
-
-    def _add_to_index(self, entry, enclosure_number, local_filename):
-        '''Add a downloaded episode to the index.'''
-        id_ = '{}_{}'.format(entry.id, enclosure_number)
-        self.index[id_] = local_filename
-
-    def _in_index(self, entry, enclosure_number):
-        '''Check if the given episode is in the index;
-        i.e. check if it has been downloaded.
-        '''
-        return self._local_file(entry, enclosure_number) is not None
-
-    def _local_file(self, entry, enclosure_number):
-        '''Look up the local file associated with the given episode
-        n the index.
-        '''
-        id_ = '{}_{}'.format(entry.id, enclosure_number)
-        return self.index.get(id_)
 
     def update(self):
         '''fetch the RSS/Atom feed for this podcast and download any new
@@ -230,28 +214,32 @@ class Subscription(object):
             self.save()
 
         try:
-            rv = self._apply_updates(feed)
+            rv = self._update_entries(feed)
         finally:
             self._save_index()
-        # store etag, modified only _after_ successful update
+        # store etag, modified only after successful update
         self._store_cached_headers(feed.get('etag'), feed.get('modified'))
         return rv
 
-    def _apply_updates(self, feed):
-        '''Process the entries from the given feed
-        and download new episodes.
-        '''
+    def _update_entries(self,feed):
         errors = 0
-        for index, entry in enumerate(feed.entries):
+        for entry in feed.get('entries', []):
+            id_ = id_for_entry(entry)
+            episode = self._episode_for_id(id_)
+            if episode:
+                pass
+                # TODO
+                # episode.update_from_entry(entry)
+            else:
+                episode = Episode.from_entry(self, entry)
+                self.episodes.append(episode)
+
             try:
-                self._process_feed_entry(feed, entry)
-                num_processed = index + 1
-                if num_processed == self.max_episodes:
-                    break
+                episode.download()
             except Exception as e:
-                log.error(('Failed to fetch entry for feed {n!r}.'
-                    ' Error was: {e}').format(n=self.name, e=e))
                 errors += 1
+                log.error(('Failed to update episode {epi}.'
+                    ' Error was {e!r}').format(epi=episode, e=e))
 
         if errors == len(feed.entries):
             return ALL_EPISODES_FAILED
@@ -260,92 +248,10 @@ class Subscription(object):
         else:
             return OK
 
-    def _process_feed_entry(self, feed, entry):
-        '''Process a single feed entry.
-        If it contains "enclosures" (episode-files)
-        that have not been downloaded yet,
-        download them, store them locally and put them in the index.
-        '''
-        metadata = {
-            'title': entry.get('title', ''),
-            'author': entry.get('author', ''),
-        }
-        published = ''
-
-        # some feeds do not have an entry-id
-        # we need the ID for index and filename
-        if entry.get('id') is None:
-            entry.id = '{}.{}'.format(
-                ''.join(str(x) for x in entry.published_parsed),
-                entry.get('title', '')
-            )
-            log.debug('Missing entry-ID, using {!r} instead.'.format(entry.id))
-
-        enclosures = entry.get('enclosures', [])
-        multiple_enclosures = len(enclosures) > 1
-        for index, enclosure in enumerate(enclosures):
-            if self._should_download(entry, enclosure, index):
-                filename = self._generate_enclosure_filename(
-                    feed, entry, enclosure,
-                    index=index if multiple_enclosures else None,
-                )
-                require_directory(self.content_dir)
-                dst_path = os.path.join(self.content_dir, filename)
-                download(enclosure.href, dst_path)
-                self._add_to_index(entry, index, dst_path)
-
-    def _should_download(self, entry, enclosure, enclosure_num):
-        '''Tell if the given enclosure should be downloaded.'''
-        content_type = enclosure.get('type', '')
-        if not content_type.lower() in SUPPORTED_CONTENT:
-            return False
-
-        if self._in_index(entry, enclosure_num):
-            return False
-
-        return True
-
-    def _generate_enclosure_filename(self, feed, entry, enclosure, index=None):
-        '''Generate the "local filename" for a given enclosure.'''
-        template = self.filename_template \
-                   or self.app_filename_template \
-                   or DEFAULT_FILENAME_TEMPLATE
-
-        today = datetime.today().timetuple()
-        pubdate = entry.published_parsed or today
-        ext = file_extension_for_mime(enclosure.type)
-        kind = enclosure.type.split('/')[0]
-        values = {
-            'subscription_name': self.name,
-            'pub_date': '{}-{:0>2d}-{:0>2d}'.format(*pubdate[0:3]),
-            'year': '{:0>4d}'.format(pubdate[0]),
-            'month': '{:0>2d}'.format(pubdate[1]),
-            'day': '{:0>2d}'.format(pubdate[2]),
-            'hour': '{:0>2d}'.format(pubdate[3]),
-            'minute': '{:0>2d}'.format(pubdate[4]),
-            'second': '{:0>2d}'.format(pubdate[5]),
-            'title': entry.get('title', ''),
-            'feed_title': feed.get('title', self.name),
-            'id': entry.id,
-            'ext': ext,
-            'kind': kind,
-        }
-
-        filename = safe_filename(template.format(**values))
-
-        # template may or may not include file-ext
-        #  - make sure we append a file-extension
-        #  - maybe insert the index between ext and basename
-        basename, ext_from_template = os.path.splitext(filename)
-        known_exts = [x.file_ext for x in SUPPORTED_CONTENT.values()]
-        if ext_from_template in known_exts:
-            filename = basename
-
-        if index:
-            filename = '{}-{:0>2d}'.format(filename, index)
-
-        filename = '{}.{}'.format(filename, ext)
-        return safe_filename(pretty_filename(filename))
+    def _episode_for_id(self, id_):
+        for episode in self.episodes:
+            if episode.id == id_:
+                return episode
 
     def _get_cached_headers(self):
         '''Try to get the cached HTTP headers for this subscription.
@@ -402,6 +308,180 @@ class Subscription(object):
         write(modified, modified_path)
 
 
+class Episode(object):
+    '''Relates to a single entry in a Subscriptions feed.
+    There can be one ore more "enclosures" in a feed-entry
+    which will be downloaded to local files.
+
+    Can be an episode that was already downloaded or a fresh episode from a
+    feed entry.
+    '''
+    def __init__(self, parent_subscription, id_, **kwargs):
+        if not id_:
+            raise ValueError('Invalid value for id {!r}.'.format(id_))
+        self.id = id_
+        if not parent_subscription:
+            raise ValueError('Missing required parent_subscription.')
+        self.subscription = parent_subscription
+
+        self.title = kwargs.get('title')
+        self.description = kwargs.get('description')
+        today = datetime.today().timetuple()
+        self.pubdate = kwargs.get('pubdate', today)
+        self.files = [
+            (url, content_type, local)
+            for url, content_type, local
+            in kwargs.get('files', [])
+        ]
+
+    @classmethod
+    def from_entry(class_, parent_subscription, entry):
+        '''Create an episode from the information in a feed entry.
+        :param object entry:
+            The feed entry.
+        :rtype object:
+            an Episode instance.
+        '''
+        id_ = id_for_entry(entry)
+        return class_(parent_subscription, id_,
+            title=entry.title,
+            description=entry.description,
+            pubdate=entry.published_parsed,
+            files=[
+                (enc.href, enc.type, None)
+                for enc in entry.get('enclosures', [])
+            ],
+        )
+
+    @classmethod
+    def from_dict(class_, parent_subscription, data_dict):
+        '''Create an Episode instance from the given data.
+        Data looks like this::
+
+            {
+                'id': 'The ID'
+                'title': 'The title,'
+                'description': 'The description',
+                'pudate': (2000, 1, 1, 15, 31, 2, 3),
+                'files': [
+                    (source_url, type, local_path),
+                    (source_url, type, local_path),
+                    ...
+                ]
+            }
+
+        :param dict data_dict:
+            The data to create the Episode from.
+        :rtype:
+            an Episode instance.
+        '''
+        id_ = data_dict.get('id')
+        return class_(parent_subscription, id_, **data_dict)
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'pubdate': tuple(self.pubdate),
+            'files': [
+                (url, content_type, local)
+                for url, content_type, local in self.files
+            ],
+        }
+
+    def download(self):
+        '''Download all enclosures for this episode.
+        Update the association (download url => local_file) in ``self.files``.
+        '''
+        for index, item in enumerate(self.files[:]):
+            url, content_type, local_file = item
+            want = self._should_download(url, content_type)
+            have = self._is_downloaded(url)
+            if want and not have:
+                local_file = self._download_one(index, url, content_type)
+                self.files[index] = (url, content_type, local_file)
+            else:
+                log.debug('Skip {!r}.'.format(url))
+
+    def _is_downloaded(self, url):
+        '''Tell if the enclosure for the given URL has been downloaded.
+        Specifically, if the local file associated with the URL exists.'''
+        for existing_url, __, local_file in self.files:
+            if url == existing_url:
+                return local_file is not None and os.path.isfile(local_file)
+        return False
+
+    def _should_download(self, url, content_type):
+        return content_type in SUPPORTED_CONTENT
+
+    def _download_one(self, index, url, content_type):
+        '''Download a single enclosure from the given URL.
+        Generates a local filename for the enclosure and stores the downloaded
+        data there.
+        returns the path to the local file.
+        '''
+        filename = self._generate_filename(content_type, index)
+        local_file = os.path.join(self.subscription.content_dir, filename)
+        log.info('Download from {!r}.'.format(url))
+        log.info('Local file is {!r}.'.format(local_file))
+        require_directory(os.path.dirname(local_file))
+        download(url, local_file)
+        return local_file
+
+    def _generate_filename(self, content_type, index):
+        '''Generate a filename for an enclosure with the given index.'''
+        template = self.subscription.filename_template \
+                   or self.subscription.app_filename_template \
+                   or DEFAULT_FILENAME_TEMPLATE
+
+        ext = file_extension_for_mime(content_type)
+        kind = content_type.split('/')[0]
+        values = {
+            'subscription_name': self.subscription.name,
+            'pub_date': '{}-{:0>2d}-{:0>2d}'.format(*self.pubdate[0:3]),
+            'year': '{:0>4d}'.format(self.pubdate[0]),
+            'month': '{:0>2d}'.format(self.pubdate[1]),
+            'day': '{:0>2d}'.format(self.pubdate[2]),
+            'hour': '{:0>2d}'.format(self.pubdate[3]),
+            'minute': '{:0>2d}'.format(self.pubdate[4]),
+            'second': '{:0>2d}'.format(self.pubdate[5]),
+            'title': self.title,
+            'feed_title': self.subscription.title,
+            'id': self.id,
+            'ext': ext,
+            'kind': kind,
+        }
+        filename = safe_filename(template.format(**values))
+
+        # template may or may not include file-ext
+        #  - make sure we append a file-extension
+        #  - maybe insert the index between ext and basename
+        basename, ext_from_template = os.path.splitext(filename)
+        known_exts = [x.file_ext for x in SUPPORTED_CONTENT.values()]
+        if ext_from_template in known_exts:
+            filename = basename
+
+        if index:
+            filename = '{}-{:0>2d}'.format(filename, index)
+
+        filename = '{}.{}'.format(filename, ext)
+        return safe_filename(pretty_filename(filename))
+
+    def delete_local_files(self):
+        '''Remove this episode.
+        Deletes the local files for this episode (if it exists).
+        clear ``self.files``.
+        '''
+        for __, __, local_file in self.files:
+            try:
+                shutil.remove(local_file)
+            except OSError as e:
+                if e.errno != os.errno.ENOENT:
+                    raise e
+        self.files = []
+
+
 def _fetch_feed(url, etag=None, modified=None):
     '''Download an parse a RSS feed.'''
     feed = feedparser.parse(url, etag=etag, modified=modified)
@@ -417,6 +497,17 @@ def _fetch_feed(url, etag=None, modified=None):
     return feed
 
 
+def id_for_entry(entry):
+    entry_id = entry.get('id')
+    if entry_id:
+        return entry_id
+    else:
+        return '{}.{}'.format(
+            ''.join(str(x) for x in entry.published_parsed),
+            entry.get('title', '')
+        )
+        log.debug('Missing entry-ID, using {!r} instead.'.format(entry.id))
+
 def file_extension_for_mime(mime):
     '''Get the appropriate file extension for a given mime-type.
 
@@ -429,7 +520,7 @@ def file_extension_for_mime(mime):
     try:
         return SUPPORTED_CONTENT[mime.lower()].file_ext
     except (KeyError, AttributeError):
-        raise ValueError('Unupported content type {!r}.'.format(mime))
+        raise ValueError('Unsupported content type {!r}.'.format(mime))
 
 
 def pretty_filename(unpretty):
@@ -481,6 +572,7 @@ def pretty_filename(unpretty):
 
     return pretty
 
+
 def safe_filename(unsafe):
     '''Convert a string so that it is save for use as a filename.
     :param str unsafe:
@@ -497,11 +589,15 @@ def safe_filename(unsafe):
 def download(download_url, dst_path):
     '''Download whatever is located at ``download_url``
     and store it at ``dst_path``.
+
+    :param str dst_path:
+        Absolute path to the download destination.
+        The parent directory of the destination file
+        *must* exist.
     '''
-    log.info('Download file from {!r} to {!r}.'.format(
-        download_url, dst_path))
     __, tempdst = tempfile.mkstemp()
     try:
+        log.debug('Download to tempdst: {!r}.'.format(tempdst))
         urlretrieve(download_url, tempdst)
         shutil.move(tempdst, dst_path)
         # desired permissions are -rw-r--r
