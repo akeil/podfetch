@@ -99,6 +99,14 @@ def run(args, cfg):
 
 
 def _create_app(cfg):
+    '''set up the application instance using the given config
+
+    :param ConfigParser cfg:
+        A ConfigParser instance containing the configuration values
+        to be used.
+    :rtype object:
+        An :class:`application.Podfetch` instance.
+    '''
     try:
         config_dir = cfg.get('default', 'config_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
@@ -213,6 +221,16 @@ def setup_argparser():
 
 
 def setup_command_parsers(parent_parser):
+    '''Set up the sub-parsers for the "action-commands":
+      - update
+      - list
+      - add
+      - purge
+    Parsers for these commands will be added to the given ``parent_parser``.
+
+    :param ArgumentParser parent_parser:
+        The parent parser.
+    '''
     subs = parent_parser.add_subparsers()
 
     # update-------------------------------------------------------------------

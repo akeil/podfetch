@@ -77,6 +77,8 @@ class Subscription(object):
     :var int max_episodes:
         The maximum number of episodes to keep downloaded.
         Read from the confoig file.
+    :var str filename_template:
+        Template string used to generate the filenames for downloaded episodes.
     '''
 
     def __init__(self, name, feed_url, config_dir, content_dir, cache_dir,
@@ -151,6 +153,7 @@ class Subscription(object):
 
 
     def _load_index(self):
+        '''Load the index-file for this subscription.'''
         try:
             with open(self.index_file) as f:
                 lines = f.readlines()
@@ -171,6 +174,7 @@ class Subscription(object):
                 log.error('Found invalid entry in index file - ignoring.')
 
     def _save_index(self):
+        '''Save the index file for this subscription to disk.'''
         if self.index:
             require_directory(os.path.dirname(self.index_file))
             with open(self.index_file, 'w') as f:
@@ -184,13 +188,20 @@ class Subscription(object):
                     raise
 
     def _add_to_index(self, entry, enclosure_number, local_filename):
+        '''Add a downloaded episode to the index.'''
         id_ = '{}_{}'.format(entry.id, enclosure_number)
         self.index[id_] = local_filename
 
     def _in_index(self, entry, enclosure_number):
+        '''Check if the given episode is in the index;
+        i.e. check if it has been downloaded.
+        '''
         return self._local_file(entry, enclosure_number) is not None
 
     def _local_file(self, entry, enclosure_number):
+        '''Look up the local file associated with the given episode
+        n the index.
+        '''
         id_ = '{}_{}'.format(entry.id, enclosure_number)
         return self.index.get(id_)
 
@@ -227,6 +238,9 @@ class Subscription(object):
         return rv
 
     def _apply_updates(self, feed):
+        '''Process the entries from the given feed
+        and download new episodes.
+        '''
         errors = 0
         for index, entry in enumerate(feed.entries):
             try:
@@ -247,6 +261,11 @@ class Subscription(object):
             return OK
 
     def _process_feed_entry(self, feed, entry):
+        '''Process a single feed entry.
+        If it contains "enclosures" (episode-files)
+        that have not been downloaded yet,
+        download them, store them locally and put them in the index.
+        '''
         metadata = {
             'title': entry.get('title', ''),
             'author': entry.get('author', ''),
@@ -276,6 +295,7 @@ class Subscription(object):
                 self._add_to_index(entry, index, dst_path)
 
     def _accept(self, entry, enclosure, enclosure_num):
+        '''Tell if the given enclosrue should be downloaded.'''
         content_type = enclosure.get('type', '')
         if not content_type.lower() in SUPPORTED_CONTENT:
             return False
@@ -286,6 +306,7 @@ class Subscription(object):
         return True
 
     def _generate_enclosure_filename(self, feed, entry, enclosure, index=None):
+        '''Generate the "local filename" for a given enclosure.'''
         template = self.filename_template \
                    or self.app_filename_template \
                    or DEFAULT_FILENAME_TEMPLATE
@@ -327,6 +348,12 @@ class Subscription(object):
         return safe_filename(pretty_filename(filename))
 
     def _get_cached_headers(self):
+        '''Try to get the cached HTTP headers for this subscription.
+
+        :rtype tuple:
+            Returns a tuple (etag, modified) with the values for these
+            HTTP headers.
+        '''
 
         def read(path):
             try:
@@ -348,6 +375,9 @@ class Subscription(object):
         return etag, modified
 
     def _store_cached_headers(self, etag, modified):
+        '''Store the values for the ``etag`` and ``modified`` headers
+        in the cache.
+        '''
 
         def write(content, path):
             if content:
@@ -373,6 +403,7 @@ class Subscription(object):
 
 
 def _fetch_feed(url, etag=None, modified=None):
+    '''Download an parse a RSS feed.'''
     feed = feedparser.parse(url, etag=etag, modified=modified)
 
     if feed.status == 410:  # HTTP Gone
@@ -402,6 +433,20 @@ def file_extension_for_mime(mime):
 
 
 def pretty_filename(unpretty):
+    '''Apply some replacements and conversion to the given string
+    and return a converted string that makes a "prettier" filename.
+
+    "Pretty" in this case means:
+      - replace some special characters with a "_"
+      - remove some unwanted characters.
+
+    Use ``safe_filename`` to remove forbidden chars.
+
+    :param str unpretty:
+        The string to be converted.
+    :rtype str:
+        The "pretty"-converted string.
+    '''
     if unpretty is None:
         return None
 

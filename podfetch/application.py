@@ -75,7 +75,22 @@ OK = 0
 
 class Podfetch(object):
     '''The main application class.
-    Used to manage and update subscriptions.'''
+    Used to manage and update subscriptions.
+
+    :var str subscriptions_dir:
+        Path to a directory in which Podfetch looks for configured
+        subscriptions.
+    :var str content_dir:
+        the destination directory into which downloaded files are stored.
+    :var cache_dir:
+        Location where helper files are stored.
+    :var HookManager hooks:
+        Delegate to run *hooks*.
+    :var str filename_template:
+        Template string used to generate filenames for downloaded episodes
+        if no specific template is defined on the subscription level.
+
+    '''
 
     def __init__(self, config_dir, content_dir, cache_dir,
         filename_template=None):
@@ -86,6 +101,16 @@ class Podfetch(object):
         self.filename_template = filename_template
 
     def _load_subscription(self, name):
+        '''Load a :class:`Subscription` instance from its configuration file.
+
+        :param str name:
+            The identifier of the configuration to load.
+        :rtype Subscription:
+            The Subscription instance.
+        :raises:
+            NoSubscriptionError if no config-file for a subscription with that
+            name exists.
+        '''
         filename = os.path.join(self.subscriptions_dir, name)
         sub = Subscription.from_file(
             filename, self.content_dir, self.cache_dir)
