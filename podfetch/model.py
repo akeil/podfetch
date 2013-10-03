@@ -284,7 +284,7 @@ class Subscription(object):
         enclosures = entry.get('enclosures', [])
         multiple_enclosures = len(enclosures) > 1
         for index, enclosure in enumerate(enclosures):
-            if self._accept(entry, enclosure, index):
+            if self._should_download(entry, enclosure, index):
                 filename = self._generate_enclosure_filename(
                     feed, entry, enclosure,
                     index=index if multiple_enclosures else None,
@@ -294,7 +294,7 @@ class Subscription(object):
                 download(enclosure.href, dst_path)
                 self._add_to_index(entry, index, dst_path)
 
-    def _accept(self, entry, enclosure, enclosure_num):
+    def _should_download(self, entry, enclosure, enclosure_num):
         '''Tell if the given enclosrue should be downloaded.'''
         content_type = enclosure.get('type', '')
         if not content_type.lower() in SUPPORTED_CONTENT:

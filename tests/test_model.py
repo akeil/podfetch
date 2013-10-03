@@ -239,12 +239,12 @@ def test_accept_enclosure(sub):
     unknown_enclosure = DummyEnclosure()
     unsupported_enclosure = DummyEnclosure(type='image/jpeg')
 
-    assert not sub._accept(existing, enclosure, 0)
-    assert sub._accept(existing, enclosure, 1)
-    assert sub._accept(not_existing, enclosure, 0)
-    assert sub._accept(not_existing, video_enclosure, 0)
-    assert not sub._accept(not_existing, unsupported_enclosure, 0)
-    assert not sub._accept(not_existing, unknown_enclosure, 0)
+    assert not sub._should_download(existing, enclosure, 0)
+    assert sub._should_download(existing, enclosure, 1)
+    assert sub._should_download(not_existing, enclosure, 0)
+    assert sub._should_download(not_existing, video_enclosure, 0)
+    assert not sub._should_download(not_existing, unsupported_enclosure, 0)
+    assert not sub._should_download(not_existing, unknown_enclosure, 0)
 
 
 def test_process_feed_entry(monkeypatch, sub):
