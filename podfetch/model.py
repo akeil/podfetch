@@ -295,7 +295,7 @@ class Subscription(object):
                 self._add_to_index(entry, index, dst_path)
 
     def _should_download(self, entry, enclosure, enclosure_num):
-        '''Tell if the given enclosrue should be downloaded.'''
+        '''Tell if the given enclosure should be downloaded.'''
         content_type = enclosure.get('type', '')
         if not content_type.lower() in SUPPORTED_CONTENT:
             return False
