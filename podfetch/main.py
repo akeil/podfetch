@@ -15,6 +15,7 @@ except ImportError:
 
 import podfetch
 from podfetch import application
+from podfetch.exceptions import NoSubscriptionError
 
 
 PROG_NAME = 'podfetch'
@@ -264,7 +265,7 @@ def setup_command_parsers(parent_parser):
 
     ls.add_argument(
         'subscription_name',
-        nargs='?',
+        nargs='*',
         help=('The names of the subscriptions to be listed.'
             ' If one or more names are given, lists downloaded files.'
             ' If no name is given, prints a list of all subscriptions'
@@ -280,11 +281,15 @@ def setup_command_parsers(parent_parser):
             for subscription in app.iter_subscriptions():
                 out.write('{}\n'.format(subscription.name))
         else:
-            sub = app.subscription_for_name(args.subscription_name)
-            out.write('{}:\n'.format(sub.title))
-            for episode in sub.episodes:
-                out.write('- {}\n'.format(episode.title))
-                out.write('  published {}-{:0>2d}-{:0>2d}\n'.format(*episode.pubdate))
+            for name in args.subscription_name:
+                try:
+                    sub = app.subscription_for_name(name)
+                    out.write('{}:\n'.format(sub.title))
+                    for episode in sub.episodes:
+                        out.write('- {}\n'.format(episode.title))
+                        out.write('  published {}-{:0>2d}-{:0>2d}\n'.format(*episode.pubdate))
+                except NoSubscriptionError:
+                    out.write('[No subscription named {!r}.]\n'.format(name))
 
         return EXIT_OK
 
@@ -343,12 +348,12 @@ def setup_command_parsers(parent_parser):
     )
 
     def do_purge(app, args):
-        if not args.subscription_names:
+        if not args.subscription_name:
             for subscription in app.iter_subscriptions():
                 app.purge_one(subscription.name)
         else:
             for subscription in app.iter_subscriptions():
-                if subscription.name in args.subscription_names:
+                if subscription.name in args.subscription_name:
                     app.purge_one(subscription.name)
 
     purge.set_defaults(func=do_purge)
