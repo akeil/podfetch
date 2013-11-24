@@ -542,7 +542,7 @@ def pretty_filename(unpretty):
 
     pretty = unpretty
 
-    replacements = [
+    translations = [
         (' ', '_'),
         (':', '_'),
         (',', '_'),
@@ -559,11 +559,19 @@ def pretty_filename(unpretty):
         ('ü', 'ue'),
         ('ß', 'ss'),
     ]
+    # unwanted ascii chars
     deletions = ['*', '?', '!', '"', '\'', '^', '\\', '´', '`', '<', '>']
 
-    for text, replacement in itertools.chain(replacements, [(c, '') for c in deletions]):
+    for text, replacement in itertools.chain(translations, [(c, '') for c in deletions]):
         pretty = pretty.replace(text, replacement)
 
+    # delete non-ascii chars and whitespace
+    import string
+    allowed_chars = string.ascii_letters + string.digits + string.punctuation
+    pretty = ''.join(c for c in pretty if c in allowed_chars)
+
+    # replace multiple occurence of separators with one separator
+    # "---" becomes "-"
     separators = ['-', '_', '.']
     for sep in separators:
         pattern = '[{}]+'.format(sep)

@@ -385,21 +385,6 @@ def outdated_test_generate_enclosure_filename_template(sub):
     assert gen(None).startswith('entry')
 
 
-def outdated_test_filename_template_from_app_config(sub):
-    '''If no template is set for the subscription,
-    use template from app-config'''
-    sub.filename_template = ''
-    sub.app_filename_template = 'app-template'
-    feed = DummyFeed()
-    entry = DummyEntry()
-    enclosure = DummyEnclosure(type='audio/mpeg')
-    gen = lambda: sub._generate_enclosure_filename(feed, entry, enclosure)
-
-    assert gen() == 'app-template.mp3'
-    sub.filename_template = 'specific'
-    assert gen() == 'specific.mp3'
-
-
 # Tests Episode ---------------------------------------------------------------
 
 
@@ -591,6 +576,7 @@ def test_pretty_filename():
         ('replace whitespace', 'replace_whitespace'),
         ('abcäöüßabc', 'abcaeoeuessabc'),
         ('multi _ separator', 'multi_separator'),
+        ('a---b', 'a-b'),
         ('abcÄÜÖabc', 'abcAeUeOeabc'),
         ('what?', 'what'),
         ('***', ''),
@@ -598,6 +584,9 @@ def test_pretty_filename():
         ('abc/def', 'abc_def'),
         ('a&b', 'a+b'),
         ('something, something', 'something_something'),
+        # non-ascii characters are deleted
+        ('A³', 'A'),
+        ('a€c', 'ac'),
     ]
     for unpretty, expected in cases:
         assert model.pretty_filename(unpretty) == expected
