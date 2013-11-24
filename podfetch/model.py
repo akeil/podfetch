@@ -216,7 +216,7 @@ class Subscription(object):
             rv = self._update_entries(feed)
         finally:
             self._save_index()
-        # store etag, modified only after successful update
+        # store etag, modified after *successful* update
         self._store_cached_headers(feed.get('etag'), feed.get('modified'))
         return rv
 
