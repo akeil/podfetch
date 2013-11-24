@@ -326,9 +326,11 @@ def test_update_error_fetching_feed(sub, monkeypatch):
 
 def test_downloaded_file_perms(tmpdir, monkeypatch):
     '''Assert that a downloaded file has the correct permissions.'''
-    def mock_urlretrieve(url, dst):
+    def mock_urlretrieve(url):
+        dst = str(tmpdir.join('somefile'))
         with open(dst, 'w') as f:
             f.write('something')
+        return dst, None
 
     monkeypatch.setattr(model, 'urlretrieve', mock_urlretrieve)
 

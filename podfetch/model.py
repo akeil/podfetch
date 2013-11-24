@@ -11,7 +11,6 @@ Format for subscription files::
 import os
 import stat
 import logging
-import tempfile
 import shutil
 import itertools
 import re
@@ -595,10 +594,9 @@ def download(download_url, dst_path):
         The parent directory of the destination file
         *must* exist.
     '''
-    __, tempdst = tempfile.mkstemp()
+    tempdst, headers = urlretrieve(download_url)
+    log.debug('Downloaded to tempdst: {!r}.'.format(tempdst))
     try:
-        log.debug('Download to tempdst: {!r}.'.format(tempdst))
-        urlretrieve(download_url, tempdst)
         shutil.move(tempdst, dst_path)
         # desired permissions are -rw-r--r
         perms = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
