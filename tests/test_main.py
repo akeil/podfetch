@@ -54,22 +54,30 @@ def test_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update']
     main.main(argv=argv)
-    mock_app.update_all.assert_called_once_with()
+    mock_app.update_all.assert_called_once_with(force=False)
+
+
+def test_forced_update(monkeypatch, mock_app):
+    with_mock_app(monkeypatch, mock_app)
+    argv = ['update', '--force']
+    main.main(argv=argv)
+    mock_app.update_all.assert_called_once_with(force=True)
 
 
 def test_update_one(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update', 'subscription-name']
     main.main(argv=argv)
-    mock_app.update_one.assert_called_once_with('subscription-name')
+    mock_app.update_one.assert_called_once_with(
+        'subscription-name', force=False)
 
 
 def test_update_many(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update', 'subscription-1', 'subscription-2']
     main.main(argv=argv)
-    mock_app.update_one.assert_any_call('subscription-1')
-    mock_app.update_one.assert_any_call('subscription-2')
+    mock_app.update_one.assert_any_call('subscription-1', force=False)
+    mock_app.update_one.assert_any_call('subscription-2', force=False)
 
 
 def test_add(monkeypatch, mock_app):

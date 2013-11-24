@@ -247,12 +247,19 @@ def setup_command_parsers(parent_parser):
             ' If no name is given, all subscriptions are updated.'),
     )
 
+    fetch.add_argument(
+        '--force',
+        action='store_true',
+        help=('Force update even if feed is not modified.'
+            ' Re-downloads episodes and overwrites existing files.'),
+    )
+
     def do_update(app, args):
         if not args.subscription_name:
-            return app.update_all()
+            return app.update_all(force=args.force)
         else:
             for name in args.subscription_name:
-                app.update_one(name)
+                app.update_one(name, force=args.force)
             # TODO rv
             return 0
     fetch.set_defaults(func=do_update)

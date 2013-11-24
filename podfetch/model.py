@@ -188,10 +188,15 @@ class Subscription(object):
                 if e.errno != os.errno.ENOENT:
                     raise
 
-    def update(self):
+    def update(self, force=False):
         '''fetch the RSS/Atom feed for this podcast and download any new
         episodes.
 
+        :param bool force:
+            *optional*, if *True*, force downloading the feed even if
+            HTTP headers indicate it was not modified.
+            Also, re-download all episodes, even if they already exist.
+            Defaults to *False*.
         :rtype int:
             Error code indicating the result of individual downloads.
             ``0``: OK,
@@ -204,23 +209,26 @@ class Subscription(object):
         etag, modified = self._get_cached_headers()
         feed = _fetch_feed(self.feed_url, etag=etag, modified=modified)
 
-        if feed.status == 304:
-            log.info('Feed for {!r} is not modified.'.format(self.name))
-            return OK
+        if feed.status == 304:  # not modified
+            if force:
+                log.debug('Forced download, ignore HTTP etag and modified.')
+            else:
+                log.info('Feed for {!r} is not modified.'.format(self.name))
+                return OK
         elif feed.status == 301:  # moved permanent
             log.info('Received status 301, change url for subscription.')
             self.feed_url = feed.href
             self.save()
 
         try:
-            rv = self._update_entries(feed)
+            rv = self._update_entries(feed, force=force)
         finally:
             self._save_index()
         # store etag, modified after *successful* update
         self._store_cached_headers(feed.get('etag'), feed.get('modified'))
         return rv
 
-    def _update_entries(self,feed):
+    def _update_entries(self, feed, force=False):
         errors = 0
         for entry in feed.get('entries', []):
             id_ = id_for_entry(entry)
@@ -234,7 +242,7 @@ class Subscription(object):
                 self.episodes.append(episode)
 
             try:
-                episode.download()
+                episode.download(force=force)
             except Exception as e:
                 errors += 1
                 log.error(('Failed to update episode {epi}.'
@@ -389,16 +397,22 @@ class Episode(object):
             ],
         }
 
-    def download(self):
+    def download(self, force=False):
         '''Download all enclosures for this episode.
         Update the association (download url => local_file) in ``self.files``.
+
+        :param bool force:
+            *optional*, if *True*, downloads enclosures even if
+            a local file already exists (overwriting the local file).
+            Defaults to *False*.
         '''
         for index, item in enumerate(self.files[:]):
             url, content_type, local_file = item
             want = self._should_download(url, content_type)
             have = self._is_downloaded(url)
-            if want and not have:
-                local_file = self._download_one(index, url, content_type)
+            if (want and not have) or (want and force):
+                local_file = self._download_one(index, url, content_type,
+                    dst_file=local_file)
                 self.files[index] = (url, content_type, local_file)
             else:
                 log.debug('Skip {!r}.'.format(url))
@@ -414,14 +428,19 @@ class Episode(object):
     def _should_download(self, url, content_type):
         return content_type in SUPPORTED_CONTENT
 
-    def _download_one(self, index, url, content_type):
+    def _download_one(self, index, url, content_type, dst_file=None):
         '''Download a single enclosure from the given URL.
         Generates a local filename for the enclosure and stores the downloaded
         data there.
+        If dst is given, no filename is generated but dst_path is used.
         returns the path to the local file.
         '''
-        filename = self._generate_filename(content_type, index)
-        local_file = os.path.join(self.subscription.content_dir, filename)
+        if dst_file:
+            local_file = dst_file
+        else:
+            filename = self._generate_filename(content_type, index)
+            local_file = os.path.join(self.subscription.content_dir, filename)
+
         log.info('Download from {!r}.'.format(url))
         log.info('Local file is {!r}.'.format(local_file))
         require_directory(os.path.dirname(local_file))

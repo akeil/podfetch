@@ -68,8 +68,9 @@ def with_mock_download(monkeypatch):
         with open(dst, 'w') as f:
             f.write('something')
 
-    monkeypatch.setattr(model, 'download',
-        mock.MagicMock(side_effect=create_file))
+    mock_download = mock.MagicMock(side_effect=create_file)
+    monkeypatch.setattr(model, 'download', mock_download)
+    return mock_download
 
 
 class _Dummy(object):
@@ -244,18 +245,35 @@ def test_apply_updates_error_handling(sub, monkeypatch):
 
 
 def test_update_feed_unchanged(sub, monkeypatch):
+    '''When the feed is not modified, update() should return OK
+    but ot update.'''
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
     sub._store_cached_headers('etag-value', 'modified-value')
-    sub._apply_updates = mock.MagicMock()
+    # sub._apply_updates = mock.MagicMock()
+    sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    rv = sub.update()
 
-    assert not sub._apply_updates.called
+    assert rv == 0
+    assert not sub._update_entries.called
     etag, modified = sub._get_cached_headers()
     assert etag == 'etag-value'
     assert modified == 'modified-value'
+
+
+def test_forced_update_feed_unchanged(sub, monkeypatch):
+    '''Ignore unchanged feed when using ``force``.'''
+    with_dummy_feed(monkeypatch, status=304)
+    with_mock_download(monkeypatch)
+
+    sub._store_cached_headers('etag-value', 'modified-value')
+
+    rv = sub.update(force=True)
+
+    assert rv == 0
+    assert len(sub.episodes) > 0
 
 
 def test_update_store_feed_headers(sub, monkeypatch):
@@ -394,6 +412,8 @@ def test_episode_download(monkeypatch, tmpdir, sub):
         - which are not downloaded already
         - which haven an acceptable content type
     '''
+    mock_download = with_mock_download(monkeypatch)
+
     local_path = str(tmpdir.join('file'))
     with open(local_path, 'w') as f:
         f.write('I exist.')
@@ -406,15 +426,39 @@ def test_episode_download(monkeypatch, tmpdir, sub):
     ]
     episode = Episode(sub, 'id', files=files)
 
-    mock_download = mock.MagicMock()
-    monkeypatch.setattr(model, 'download', mock_download)
-
     episode.download()
     assert mock_download.call_count == 2  # 2x previously not downloaded
     assert mock_download.called_with('http://example.com/2')
     assert mock_download.called_with('http://example.com/3')
     old_len = len(files)
     assert old_len == len(episode.files)
+
+
+def test_episode_force_download(monkeypatch, tmpdir, sub):
+    mock_download = with_mock_download(monkeypatch)
+
+    local_path = str(tmpdir.join('file'))
+    existing_content = 'I exist'
+    with open(local_path, 'w') as f:
+        f.write(existing_content)
+
+    files = [
+        ('http://example.com/1', 'audio/mpeg', local_path),  # already there
+        ('http://example.com/2', 'audio/mpeg', None),        # should download
+        ('http://example.com/4', 'text/html', None),         # reject
+    ]
+    episode = Episode(sub, 'id', files=files)
+
+    episode.download(force=True)
+
+    assert mock_download.call_count == 2  # one new, one forced, one rejected
+    assert mock_download.called_with('http://example.com/1')
+    assert mock_download.called_with('http://example.com/2')
+    old_len = len(files)
+    assert old_len == len(episode.files)
+    # check that the forced file was actually overwritten
+    with open(local_path) as f:
+        assert f.read() != existing_content
 
 
 def test_generate_filename_episode(sub):

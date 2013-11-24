@@ -130,12 +130,17 @@ class Podfetch(object):
         '''
         return self._load_subscription(name)
 
-    def update_all(self):
+    def update_all(self, force=False):
         '''Update all subscriptions.
 
         Retrieves the feeds for each subscription
         and downloads any new episodes.
 
+        :param bool force:
+            *optional*,
+            force update, ignore HTTP etag and not modified in feed.
+            Re-download all episodes.
+            Default is *True*.
         :rtype int:
             An *Error Code* describing the result.
         '''
@@ -144,7 +149,7 @@ class Podfetch(object):
         for subscription in self.iter_subscriptions():
             total_count += 1
             try:
-                rv = self._update_subscription(subscription)
+                rv = self._update_subscription(subscription, force=force)
             except Exception as e:
                 log.error(('Failed to fetch feed {n!r}.'
                     ' Error was: {e}').format(n=subscription.name, e=e))
@@ -172,16 +177,21 @@ class Podfetch(object):
                 except Exception as e:  # TODO exception type
                     log.error(e)
 
-    def update_one(self, name):
+    def update_one(self, name, force=False):
         '''Update the subscription with the given ``name``.
 
         :param str name:
             The name of the config file for the subscription.
+        :param bool force:
+            *optional*,
+            force update, ignore HTTP etag and not modified in feed.
+            Re-download all episodes.
+            Default is *False*.
         '''
         subscription = self._load_subscription(name)
-        self._update_subscription(subscription)
+        self._update_subscription(subscription, force=force)
 
-    def _update_subscription(self, subscription):
+    def _update_subscription(self, subscription, force=False):
         '''Fetch the given feed, download any new episodes.
 
         :param object subscription:
@@ -199,7 +209,7 @@ class Podfetch(object):
             authentication failure
         '''
         log.info('Update subscription {!r}.'.format(subscription.name))
-        subscription.update()
+        subscription.update(force=force)
 
         self.hooks.run_hooks(SUBSCRIPTION_UPDATED, subscription.name,
             subscription.content_dir)
