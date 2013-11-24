@@ -83,6 +83,7 @@ def test_add(monkeypatch, mock_app):
         url, name=name, max_episodes=max_epis)
     assert mock_app.update_one.called
 
+
 def test_add_no_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     url = 'http://example.com'

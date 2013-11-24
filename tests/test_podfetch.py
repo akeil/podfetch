@@ -11,6 +11,7 @@ import pytest
 import os
 
 from podfetch import application
+from podfetch.exceptions import NoSubscriptionError
 
 
 class DummyEntry(object):
@@ -65,6 +66,17 @@ def test_unique_name(app):
     _write_subscription_config(path)
     unique_name = app._make_unique_name('existing')
     assert unique_name != 'existing'
+
+
+def test_subscription_for_name(app):
+    # error case
+    with pytest.raises(NoSubscriptionError):
+        app.subscription_for_name('does-not-exist')
+
+    # success case
+    name='somename'
+    app.add_subscription('http://www.example.com/feed', name=name)
+    assert app.subscription_for_name(name).name == name
 
 
 def test_add_subscription(app):

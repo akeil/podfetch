@@ -117,6 +117,19 @@ class Podfetch(object):
         sub.app_filename_template = self.filename_template
         return sub
 
+    def subscription_for_name(self, name):
+        '''Get the :class:`model.Subscription` with the given name.
+
+        :param str name:
+            The unique name of the subscription
+        :rtype object:
+            :class:`model.Subscription` instance if it exists.
+        :raises:
+            NoSubscriptionError if no subscription with that name
+            exists
+        '''
+        return self._load_subscription(name)
+
     def update_all(self):
         '''Update all subscriptions.
 

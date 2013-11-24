@@ -280,10 +280,11 @@ def setup_command_parsers(parent_parser):
             for subscription in app.iter_subscriptions():
                 out.write('{}\n'.format(subscription.name))
         else:
-            for subscription in app.iter_subscriptions():
-                if subscription.name in args.subscription_name:
-                    out.write('{}\n'.format(subscription.name))
-                    # TODO list downloaded episodes
+            sub = app.subscription_for_name(args.subscription_name)
+            out.write('{}:\n'.format(sub.title))
+            for episode in sub.episodes:
+                out.write('- {}\n'.format(episode.title))
+                out.write('  published {}-{:0>2d}-{:0>2d}\n'.format(*episode.pubdate))
 
         return EXIT_OK
 
@@ -377,7 +378,7 @@ def read_config(extra_config_paths=None, require=False):
         raise ValueError(('No configuration file found.'
             ' Searchpath: {!r}.').format(':'.join(paths)))
 
-    log.info('Read configuration from: {}.'.format(':'.join(read_from)))
+    log.debug('Read configuration from: {!r}.'.format(':'.join(read_from)))
     return cfg
 
 
