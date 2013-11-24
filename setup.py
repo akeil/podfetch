@@ -4,12 +4,12 @@
 import os
 import sys
 
-from setuptools import setup
+from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 
 
 # remember __init__.py
-VERSION = '0.2.1'
+VERSION = '0.3.0'
 
 if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
