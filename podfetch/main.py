@@ -16,6 +16,7 @@ except ImportError:
 import podfetch
 from podfetch import application
 from podfetch.exceptions import NoSubscriptionError
+from podfetch.exceptions import UserError
 
 
 PROG_NAME = 'podfetch'
@@ -96,7 +97,11 @@ def run(args, cfg):
         The *Return Code* of the application-run.
     '''
     app = _create_app(cfg)
-    return args.func(app, args)
+    try:
+        func = args.func
+    except AttributeError:
+        raise UserError('No subcommand specified.')
+    return func(app, args)
 
 
 def _create_app(cfg):
@@ -384,6 +389,7 @@ def read_config(extra_config_paths=None, require=False):
     '''
     extra = [p for p in extra_config_paths if p]
     paths = [SYSTEM_CONFIG_PATH, DEFAULT_USER_CONFIG_PATH,] + extra
+    # TODO remove duplicate path entries
     cfg = configparser.ConfigParser()
     read_from = cfg.read(paths)
     if not read_from and require:

@@ -26,3 +26,8 @@ class FeedGoneError(PodfetchError):
 class FeedNotFoundError(PodfetchError):
     '''Raised when accessing a feed URL returns a HTTP 404.'''
     pass
+
+
+class UserError(Exception):
+    '''Raised for bad input, missing parameters, ...'''
+    pass
