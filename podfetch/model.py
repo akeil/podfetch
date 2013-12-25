@@ -208,6 +208,7 @@ class Subscription(object):
         '''
         etag, modified = self._get_cached_headers()
         feed = _fetch_feed(self.feed_url, etag=etag, modified=modified)
+        log.debug('Feed status is {}'.format(feed.status))
 
         if feed.status == 304:  # not modified
             if force:
@@ -511,7 +512,7 @@ def _fetch_feed(url, etag=None, modified=None):
         raise FeedNotFoundError(
             'Request for URL {!r} returned HTTP 404.'.format(feed_url))
     # TODO AuthenticationFailure
-
+    # TODO Connection error, Timeouts
     return feed
 
 
