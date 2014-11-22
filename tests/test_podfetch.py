@@ -141,39 +141,5 @@ def _create_subscription(app, name,
             f.write('some content')
 
 
-def test_purge(app):
-    name = 'my-subscription'
-    num_episodes = 10
-    max_episodes = 5
-    _create_subscription(
-        app, name, max_episodes=max_episodes, create_episodes=num_episodes
-    )
-    content_dir = os.path.join(app.content_dir, name)
-    assert len(os.listdir(content_dir)) == num_episodes
-
-    app.purge_one(name)
-    remaining = os.listdir(content_dir)
-    assert len(remaining) == max_episodes
-    assert 'episode-9' in remaining
-    assert 'episode-5' in remaining
-    assert 'episode-0' not in remaining
-    assert 'episode-4' not in remaining
-
-
-def test_purge_keep_all(app):
-    name = 'my-subscription'
-    num_episodes = 10
-    max_episodes = -1
-    _create_subscription(
-        app, name, max_episodes=max_episodes, create_episodes=num_episodes
-    )
-    content_dir = os.path.join(app.content_dir, name)
-    assert len(os.listdir(content_dir)) == num_episodes
-
-    app.purge_one(name)
-    remaining = os.listdir(content_dir)
-    assert len(remaining) == num_episodes
-
-
 if __name__ == '__main__':
     pytest.main(__file__)

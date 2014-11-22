@@ -356,6 +356,35 @@ class Subscription(object):
             if episode.id == id_:
                 return episode
 
+    def purge(self, simulate=False):
+        '''Delete old episodes, keep only *max_episodes*.
+        If ``self.max_episodes`` is 0 or less, an unlimited number of
+        allowed episodes is assumed and nothing is deleted.
+
+        :param bool simulate:
+            List filenames to be deleted
+            but do not delete anything.
+        :rtype list:
+            list of absolute paths to be deleted.
+        '''
+        # sort by date received - oldest come first
+        # select everything EXCEPT the ones to keep
+        episodes = sorted(self.episodes, key=lambda x: x.pubdate)
+        keep = max(self.max_episodes, 0)  # -1 to 0
+        selected = episodes[:-keep]
+
+        log.info('Purge {!r}, select {} episodes to delete ({} to keep)'.format(
+            self, len(selected), keep))
+
+        deleted_files = []
+        for episode in selected:
+            deleted_files += [filename for __, __, filename in episode.files]
+            if not simulate:
+                episode.delete_local_files()
+                self.episodes.remove(episode)
+
+        return deleted_files
+
     @property
     def _etag_path(self):
         return os.path.join(self.cache_dir, '{}.etag'.format(self.name))

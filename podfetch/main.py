@@ -366,7 +366,6 @@ def setup_command_parsers(parent_parser):
         'purge',
         help='Remove old downloaded episodes.'
     )
-
     purge.add_argument(
         'subscription_name',
         nargs='?',
@@ -374,15 +373,27 @@ def setup_command_parsers(parent_parser):
             ' should be removed. If no name is given, all subscriptions'
             ' are purged.'),
     )
+    purge.add_argument(
+        '-s', '--simulate',
+        action='store_true',
+        help='List filenames, do not delete.'
+    )
 
     def do_purge(app, args):
+        result = []
         if not args.subscription_name:
-            for subscription in app.iter_subscriptions():
-                app.purge_one(subscription.name)
+            result += app.purge_all(simulate=args.simulate)
         else:
-            for subscription in app.iter_subscriptions():
-                if subscription.name in args.subscription_name:
-                    app.purge_one(subscription.name)
+            for name in args.subscription_name:
+                result += app.purge_one(
+                    subscription.name, simulate=args.simulate
+                )
+
+        log.info('Purged {} files...'.format(len(result)))
+        for filename in result:
+            log.info('Purged {!r}'.format(filename))
+        if result and simulate:
+            log.warning('Simulation - no files were deleted.')
 
     purge.set_defaults(func=do_purge)
 

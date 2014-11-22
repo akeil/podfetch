@@ -301,27 +301,18 @@ class Podfetch(object):
 
         return name
 
-    def purge_all(self):
+    def purge_all(self, simulate=False):
+        deleted_files = []
         for subscription in self.iter_subscriptions():
-            self._purge_subscription(subscription)
+            deleted_files += subscription.purge(simulate=simulate)
+            subscription.save()
+        return deleted_files
 
-    def purge_one(self, name):
+    def purge_one(self, name, simulate=False):
         subscription = self._load_subscription(name)
-        self._purge_subscription(subscription)
-
-    def _purge_subscription(self, subscription):
-        if subscription.max_episodes < 0:
-            log.info(('Number of episodes not limited'
-                ' for subscription {!r}.').format(subscription.name))
-        else:
-            content_dir = os.path.join(self.content_dir, subscription.name)
-            filenames = os.listdir(content_dir)
-            delete_count = len(filenames) - subscription.max_episodes
-            to_be_deleted = sorted(filenames, reverse=True)[delete_count:]
-            for filename in to_be_deleted:
-                path = os.path.join(content_dir, filename)
-                log.info('Delete episode {!r}'.format(path))
-                os.unlink(path)
+        deleted_files = subscription.purge(simulate=simulate)
+        subscription.save()
+        return deleted_files
 
 
 class HookManager(object):

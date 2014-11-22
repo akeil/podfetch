@@ -431,6 +431,59 @@ def outdated_test_generate_enclosure_filename_template(sub):
     assert gen(None).startswith('entry')
 
 
+def test_purge(sub, monkeypatch):
+    '''Assert that the right episodes are deleted with purge'''
+    with_dummy_feed(monkeypatch)
+    with_mock_download(monkeypatch)
+    sub.update()
+    sub.max_episodes = 1
+
+    # relies on common.FEED_DATA having exactly two items
+    assert len(sub.episodes) == 2
+    assert len(os.listdir(sub.content_dir)) == 2
+
+    deleted = sub.purge()
+    assert len(deleted) == 1
+    assert len(sub.episodes) == 1
+    assert len(os.listdir(sub.content_dir)) == 1
+
+
+def test_purge_simulate(sub, monkeypatch):
+    '''Assert that no episodes are deleted with purge
+    in simulation mode'''
+    with_dummy_feed(monkeypatch)
+    with_mock_download(monkeypatch)
+    sub.update()
+    sub.max_episodes = 1
+
+    # relies on common.FEED_DATA having exactly two items
+    assert len(sub.episodes) == 2
+    assert len(os.listdir(sub.content_dir)) == 2
+
+    deleted = sub.purge(simulate=True)
+    assert len(deleted) == 1
+    assert len(sub.episodes) == 2
+    assert len(os.listdir(sub.content_dir)) == 2
+
+
+def test_purge_keepall(sub, monkeypatch):
+    '''Assert that no episodes are deleted with purge
+    if max_episodes < 1'''
+    with_dummy_feed(monkeypatch)
+    with_mock_download(monkeypatch)
+    sub.update()
+    sub.max_episodes = -1
+
+    # relies on common.FEED_DATA having exactly two items
+    assert len(sub.episodes) == 2
+    assert len(os.listdir(sub.content_dir)) == 2
+
+    deleted = sub.purge(simulate=True)
+    assert len(deleted) == 0
+    assert len(sub.episodes) == 2
+    assert len(os.listdir(sub.content_dir)) == 2
+
+
 # Tests Episode ---------------------------------------------------------------
 
 
