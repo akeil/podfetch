@@ -30,6 +30,30 @@ Configuration options are:
     filename_template = {pub_date}-{title}
 
 
+Subscriptions
+=============
+Subscriptions are kept as ini-files under ``~/.config/podfetch/subscriptions``
+with one file per feed.
+The files look like this (``url`` is the only mandatorysetting):
+
+.. code:: ini
+
+    [subscription]
+    url = http://www.example.com/podcast
+
+    # maximum number of episodes to keep
+    max_episodes = 30
+
+    # display title
+    title = My Podcast
+
+    # override application wide template for this subscription
+    filename_template = {title}
+
+    # override application config for this subscription
+    content_dir = /path/to/episodes
+
+
 Interesting Directories
 =======================
 ``~/.config/podfetch``
