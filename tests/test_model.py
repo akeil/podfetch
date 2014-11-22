@@ -26,10 +26,11 @@ from tests import common
 @pytest.fixture
 def sub(tmpdir):
     config_dir = tmpdir.mkdir('config')
+    index_dir = tmpdir.mkdir('index')
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
     sub = Subscription('name', 'http://example.com',
-        str(config_dir), str(content_dir), str(cache_dir))
+        str(config_dir), str(index_dir), str(content_dir), str(cache_dir))
     return sub
 
 
@@ -135,7 +136,9 @@ def test_load_subscription_from_file(tmpdir):
         'title = the_title',
     ]))
 
-    sub = Subscription.from_file(str(load_from), 'content_dir', 'cache_dir')
+    sub = Subscription.from_file(
+        str(load_from), 'index_dir', 'content_dir', 'cache_dir'
+    )
 
     assert sub.name == 'the_name'
     assert sub.feed_url == 'http://example.com/feed'
@@ -149,7 +152,9 @@ def test_load_nonexisting_raises_error():
     must raise a NoSubscriptionError.'''
     with pytest.raises(NoSubscriptionError):
         sub = Subscription.from_file(
-            'does-not-exist', 'content_dir', 'cache_dir')
+            'does-not-exist', 
+            'index_dir', 'content_dir', 'cache_dir'
+        )
 
 
 def test_save(tmpdir, sub):
@@ -177,7 +182,7 @@ def test_save_and_load_index(sub):
     assert os.path.isfile(sub.index_file)
 
     reloaded_sub = Subscription('name', 'url',
-        'config_dir', 'content_dir', sub.cache_dir)
+        'index_dir', 'config_dir', 'content_dir', sub.cache_dir)
     reloaded_sub._load_index()
     for index in range(5):
         id_ = 'id.{}'.format(index)

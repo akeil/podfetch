@@ -28,9 +28,13 @@ from tests import common
 @pytest.fixture(scope='function')
 def mock_app(tmpdir):
     config_dir = tmpdir.mkdir('config')
+    index_dir = tmpdir.mkdir('index')
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
-    app = Podfetch(str(config_dir), str(content_dir), str(cache_dir))
+    app = Podfetch(
+        str(config_dir), str(index_dir),
+        str(content_dir), str(cache_dir)
+    )
 
     app.update_all = mock.MagicMock()
     app.update_one = mock.MagicMock()

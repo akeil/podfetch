@@ -33,9 +33,12 @@ DummyEnclosure = namedtuple('DummyEnclosure', 'type href')
 @pytest.fixture
 def app(tmpdir):
     config_dir = tmpdir.mkdir('config')
+    index_dir = tmpdir.mkdir('index')
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
-    app = application.Podfetch(str(config_dir), str(content_dir), str(cache_dir))
+    app = application.Podfetch(
+        str(config_dir), str(index_dir), str(content_dir), str(cache_dir)
+    )
     os.mkdir(app.subscriptions_dir)
     return app
 
