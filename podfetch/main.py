@@ -120,6 +120,12 @@ def _create_app(cfg):
             '~', '.config', 'podfetch'))
 
     try:
+        index_dir = cfg.get('default', 'index_dir')
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        cache_dir = os.path.expanduser( os.path.join(
+            '~', '.local', 'share', 'podfetch'))
+
+    try:
         content_dir = cfg.get('default', 'content_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
         content_dir = os.path.expanduser( os.path.join(
@@ -137,11 +143,12 @@ def _create_app(cfg):
         filename_template = None
 
     log.debug('Looking for subscriptions and hooks in {!r}.'.format(config_dir))
+    log.debug('Index directory is {!r}'.format(index_dir))
     log.debug('Download audio files to {!r}.'.format(content_dir))
     log.debug('Cache directory is {!r}.'.format(cache_dir))
     log.debug('Global filename-template is {!r}.'.format(filename_template))
     return application.Podfetch(
-        config_dir, content_dir, cache_dir,
+        config_dir, index_dir, content_dir, cache_dir,
         filename_template=filename_template,
     )
 

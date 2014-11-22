@@ -80,6 +80,9 @@ class Podfetch(object):
     :var str subscriptions_dir:
         Path to a directory in which Podfetch looks for configured
         subscriptions.
+    :var str index_dir:
+        Base directory in which the index files with the list of downloaded
+        episodes for each subscription are stored.
     :var str content_dir:
         the destination directory into which downloaded files are stored.
     :var cache_dir:
@@ -92,9 +95,10 @@ class Podfetch(object):
 
     '''
 
-    def __init__(self, config_dir, content_dir, cache_dir,
+    def __init__(self, config_dir, index_dir, content_dir, cache_dir,
         filename_template=None):
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
+        self.index_dir = index_dir
         self.content_dir = content_dir
         self.cache_dir = cache_dir
         self.hooks = HookManager(config_dir)
@@ -113,7 +117,7 @@ class Podfetch(object):
         '''
         filename = os.path.join(self.subscriptions_dir, name)
         sub = Subscription.from_file(
-            filename, self.content_dir, self.cache_dir)
+            filename, self.index_dir, self.content_dir, self.cache_dir)
         sub.app_filename_template = self.filename_template
         return sub
 
@@ -263,6 +267,7 @@ class Podfetch(object):
                 raise
 
         if delete_content:
+            # TODO: this should be implemented by the Subscription class
             log.info('Delete contents at {!r}.'.format(content_dir))
             shutil.rmtree(content_dir, ignore_errors=True)
 

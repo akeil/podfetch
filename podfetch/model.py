@@ -74,19 +74,28 @@ class Subscription(object):
     :var str feed_url:
         The URL for the podcast-feed.
         Read from the confoig file.
+    :var str config_dir:
+        Base directory where the config file for this subscription is kept.
+        File name for config file is ``/{CONFIG_DIR}/{SUBSCRIPTION_NAME}``.
+    :var str index_dir:
+        Base directory for the index file of this subscription.
+        File name for index file is ``/{INDEX_DIR}/{SUBSCRIPTION_NAME}``.
     :var int max_episodes:
         The maximum number of episodes to keep downloaded.
-        Read from the confoig file.
+        Read from the config file.
     :var str filename_template:
         Template string used to generate the filenames for downloaded episodes.
     '''
 
-    def __init__(self, name, feed_url, config_dir, content_dir, cache_dir,
+    def __init__(self, name, feed_url,
+        config_dir, index_dir, content_dir, cache_dir,
         title=None, max_episodes=-1,
         filename_template=None, app_filename_template=None):
+
         self.name = name
         self.feed_url = feed_url
         self.title = title or name
+        self.index_dir = index_dir
         self.content_dir = os.path.join(content_dir, self.name)
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
@@ -95,7 +104,7 @@ class Subscription(object):
         self.app_filename_template = app_filename_template
 
         self.index_file = os.path.join(
-            self.cache_dir, '{}.json'.format(self.name))
+            self.index_dir, '{}.json'.format(self.name))
         self.episodes = []
         self._load_index()
 
@@ -126,7 +135,7 @@ class Subscription(object):
             cfg.write(fp)
 
     @classmethod
-    def from_file(cls, path, content_dir, cache_dir):
+    def from_file(cls, path, index_dir, content_dir, cache_dir):
         '''Load a ``Subscription`` from its config file.
 
         :rtype object:
@@ -157,7 +166,9 @@ class Subscription(object):
         except configparser.NoOptionError:
             title = None
 
-        return cls(name, feed_url, config_dir, content_dir, cache_dir,
+        return cls(
+            name, feed_url,
+            config_dir, index_dir, content_dir, cache_dir,
             title=title, max_episodes=max_episodes,
             filename_template=filename_template
         )
