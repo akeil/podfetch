@@ -238,7 +238,9 @@ class Podfetch(object):
             name = name_from_url(url)
         uname = self._make_unique_name(name)
         sub = Subscription(uname, url,
-            self.subscriptions_dir, self.content_dir, self.cache_dir)
+            self.subscriptions_dir, self.index_dir,
+            self.content_dir, self.cache_dir
+        )
         sub.save()
 
         self.hooks.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
