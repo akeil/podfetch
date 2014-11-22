@@ -255,6 +255,34 @@ class Subscription(object):
         else:
             delete_if_exists(self.index_file)
 
+    def delete(self, keep_episodes=False):
+        '''Delete this subscription.
+        Includes:
+        - cached header values in ``cache_dir``
+        - index file in ``index_dir``
+        - episode files, if ``keep_episodes`` is *False*
+        - the ``content_dir``, if ``keep_episodes`` is *False*
+
+        Does **not include** the subscription file,
+        which is managed by the application.
+        '''
+        self._clear_cached_headers()
+        delete_if_exists(self.index_file)
+        if not keep_episodes:
+            for episode in self.episodes:
+                episode.delete_local_files()
+            try:
+                os.rmdir(self.content_dir)
+            except os.error as e:
+                if e.errno == os.errno.ENOENT:
+                    pass
+                elif e.errno == os.errno.ENOTEMPTY:
+                    log.warning(('Directory {!r} was not removed because it'
+                        ' is not empty.').format(self.content_dir))
+                    pass
+                else:
+                    raise
+
     def update(self, force=False):
         '''fetch the RSS/Atom feed for this podcast and download any new
         episodes.
@@ -328,6 +356,14 @@ class Subscription(object):
             if episode.id == id_:
                 return episode
 
+    @property
+    def _etag_path(self):
+        return os.path.join(self.cache_dir, '{}.etag'.format(self.name))
+
+    @property
+    def _modified_path(self):
+        return os.path.join(self.cache_dir, '{}.modified'.format(self.name))
+
     def _get_cached_headers(self):
         '''Try to get the cached HTTP headers for this subscription.
 
@@ -347,12 +383,8 @@ class Subscription(object):
                 else:
                     raise
 
-        etag_path = os.path.join(
-            self.cache_dir, '{}.etag'.format(self.name))
-        modified_path = os.path.join(
-            self.cache_dir, '{}.modified'.format(self.name))
-        etag = read(etag_path)
-        modified = read(modified_path)
+        etag = read(self._etag_path)
+        modified = read(self._modified_path)
         return etag, modified
 
     def _store_cached_headers(self, etag, modified):
@@ -375,12 +407,13 @@ class Subscription(object):
                     if e.errno != os.errno.ENOENT:
                         raise
 
-        etag_path = os.path.join(
-            self.cache_dir, '{}.etag'.format(self.name))
-        modified_path = os.path.join(
-            self.cache_dir, '{}.modified'.format(self.name))
-        write(etag, etag_path)
-        write(modified, modified_path)
+        write(etag, self._etag_path)
+        write(modified, self._modified_path)
+
+    def _clear_cached_headers(self):
+        '''Forget (delete) the cached values from HTTP headers.'''
+        delete_if_exists(self._etag_path)
+        delete_if_exists(self._modified_path)
 
 
 class Episode(object):

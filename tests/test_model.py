@@ -205,6 +205,25 @@ def test_save_index_create_directory(sub, tmpdir):
     assert os.path.isfile(sub.index_file)
 
 
+def test_delete(sub, monkeypatch):
+    '''Assert that after a subscription is deleted,
+    content, index file and cached header files are deleted.'''
+    with_dummy_feed(monkeypatch, return_etag='x', return_modified='x')
+    with_mock_download(monkeypatch)
+
+    sub.update()
+    assert len(os.listdir(sub.content_dir)) > 0
+    assert os.path.isfile(sub._etag_path)
+    assert os.path.isfile(sub._modified_path)
+    assert os.path.isfile(sub.index_file)
+
+    sub.delete()
+    assert not os.path.exists(sub.content_dir)
+    assert not os.path.exists(sub._etag_path)
+    assert not os.path.exists(sub._modified_path)
+    assert not os.path.exists(sub.index_file)
+
+
 def test_write_read_cached_headers(sub):
     '''Write ``etag`` and ``modified`` headers to cache and retrieve them
     correctly.'''

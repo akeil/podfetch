@@ -268,8 +268,7 @@ class Podfetch(object):
         '''
         sub = self.subscription_for_name(name)
         filename = os.path.join(self.subscriptions_dir, name)
-        #content_dir = os.path.join(self.content_dir, name)
-        content_dir = sub.content_dir
+        sub.delete(keep_episodes=not delete_content)
         log.info('Delete subscription at {!r}.'.format(filename))
         try:
             os.unlink(filename)
@@ -277,21 +276,7 @@ class Podfetch(object):
             if e.errno != os.errno.ENOENT:
                 raise
 
-        if delete_content:
-            # TODO: this should be implemented by the Subscription class
-            indexfile = sub.index_file
-            try:
-                os.unlink(indexfile)
-            except os.error as e:
-                if e.errno != os.errno.ENOENT:
-                    raise
-
-            # TODO remove cached HTTP header values
-
-            log.info('Delete contents at {!r}.'.format(content_dir))
-            shutil.rmtree(content_dir, ignore_errors=True)
-
-        self.hooks.run_hooks(SUBSCRIPTION_REMOVED, name, content_dir)
+        self.hooks.run_hooks(SUBSCRIPTION_REMOVED, name, sub.content_dir)
 
     def _make_unique_name(self, name):
         '''Modify the given ``name`` so that we get  a name that does
