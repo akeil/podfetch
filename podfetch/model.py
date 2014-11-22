@@ -160,17 +160,19 @@ class Subscription(object):
         sec = 'subscription'
         cfg.add_section(sec)
 
-        s = lambda k, v: cfg.set(sec, k,v)
-        s('url', self.feed_url)
-        s('max_episodes', str(self.max_episodes))
+        _set = lambda k, v: cfg.set(sec, k,v)
+
+        _set('url', self.feed_url)
+        _set('max_episodes', str(self.max_episodes))
+
         if self.title:
-            s('title', self.title)
+            _set('title', self.title)
 
         if self.filename_template:
-            s('filename_template', self.filename_template)
+            _set('filename_template', self.filename_template)
 
         if self._content_dir:
-            s('content_dir', self._content_dir)
+            _set('content_dir', self._content_dir)
 
         filename = os.path.join(self.config_dir, self.name)
         log.debug(
@@ -251,11 +253,7 @@ class Subscription(object):
             with open(self.index_file, 'w') as f:
                 json.dump(data, f)
         else:
-            try:
-                os.unlink(self.index_file)
-            except OSError as e:
-                if e.errno != os.errno.ENOENT:
-                    raise
+            delete_if_exists(self.index_file)
 
     def update(self, force=False):
         '''fetch the RSS/Atom feed for this podcast and download any new
@@ -557,17 +555,10 @@ class Episode(object):
         return safe_filename(pretty_filename(filename))
 
     def delete_local_files(self):
-        '''Remove this episode.
-        Deletes the local files for this episode (if it exists).
-        clear ``self.files``.
-        '''
-        for __, __, local_file in self.files:
-            try:
-                shutil.remove(local_file)
-            except OSError as e:
-                if e.errno != os.errno.ENOENT:
-                    raise e
-        self.files = []
+        '''Delete the local files for this episode (if they exist).'''
+        while self.files:
+            __, __, local_file = self.files.pop()
+            delete_if_exists(local_file)
 
 
 def _fetch_feed(url, etag=None, modified=None):
@@ -699,11 +690,7 @@ def download(download_url, dst_path):
         perms = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
         os.chmod(dst_path, perms)
     finally:
-        try:
-            os.unlink(tempdst)
-        except os.error as e:
-            if e.errno != os.errno.ENOENT:
-                raise
+        delete_if_exists(tempdst)
 
 
 def require_directory(dirname):
@@ -712,4 +699,13 @@ def require_directory(dirname):
         os.makedirs(dirname)
     except os.error as e:
         if e.errno != os.errno.EEXIST:
+            raise
+
+
+def delete_if_exists(filename):
+    '''Delete the given filename (absolute path) if it exists.'''
+    try:
+        os.unlink(filename)
+    except os.error as e:
+        if e.errno != os.errno.ENOENT:
             raise
