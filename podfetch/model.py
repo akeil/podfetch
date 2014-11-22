@@ -1,12 +1,24 @@
 #-*- coding: utf-8 -*-
-'''
-Podfetch Models
+'''Podfetch Models
 
 Format for subscription files::
 
     [subscription]
     url = http://example.com/feed
 
+Creating Subscription instances
+
+Instances of the ``Subscription`` class are normally created by the
+``Podfetch`` application in one of two ways:
+
+    create new
+        uses Subscription.__init__()
+
+    load existing
+        uses Subscription.from_file()
+        which internally uses Subscription.__init__()
+        passing values from the config file.
+    
 '''
 import os
 import stat
@@ -80,6 +92,15 @@ class Subscription(object):
     :var str index_dir:
         Base directory for the index file of this subscription.
         File name for index file is ``/{INDEX_DIR}/{SUBSCRIPTION_NAME}``.
+    :var str default_content_dir:
+        The default content directory for the application.
+        Individual subscriptions download to
+        ``/{DEFAULT_CONTENT_DIR}/{SUBSCRIPTION_NAME}``
+        *unless* an individual ``content_dir`` is defined.
+    :var str content_dir:
+        Download directory for episodes, overrides the ``default_content_dir``
+        for this subscription only. Note that this directory is not combined
+        with the subscription name.
     :var int max_episodes:
         The maximum number of episodes to keep downloaded.
         Read from the config file.
@@ -88,15 +109,16 @@ class Subscription(object):
     '''
 
     def __init__(self, name, feed_url,
-        config_dir, index_dir, content_dir, cache_dir,
-        title=None, max_episodes=-1,
+        config_dir, index_dir, default_content_dir, cache_dir,
+        title=None, max_episodes=-1, content_dir=None,
         filename_template=None, app_filename_template=None):
 
         self.name = name
         self.feed_url = feed_url
         self.title = title or name
         self.index_dir = index_dir
-        self.content_dir = os.path.join(content_dir, self.name)
+        self._default_content_dir = default_content_dir
+        self._content_dir = content_dir
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
         self.config_dir = config_dir
@@ -107,6 +129,25 @@ class Subscription(object):
             self.index_dir, '{}.json'.format(self.name))
         self.episodes = []
         self._load_index()
+
+    @property
+    def content_dir(self):
+        '''The content directory to which episodes are downloaded.
+
+        This is
+        - either a subdirectory within the application wide ``content_dir``,
+          named after this subscription
+        - or an indivdually defined directory for this subscription only
+        '''
+        return self._content_dir or os.path.join(
+            self._default_content_dir,
+            self.name
+        )
+
+    @content_dir.setter
+    def content_dir(self, dirname):
+        # convert '' to None, but NOT None to 'None'
+        self._content_dir = None if not str(dirname) else dirname
 
     def save(self):
         '''Save this subscription to an ini-file in the given
@@ -124,8 +165,12 @@ class Subscription(object):
         s('max_episodes', str(self.max_episodes))
         if self.title:
             s('title', self.title)
+
         if self.filename_template:
             s('filename_template', self.filename_template)
+
+        if self._content_dir:
+            s('content_dir', self._content_dir)
 
         filename = os.path.join(self.config_dir, self.name)
         log.debug(
@@ -135,7 +180,7 @@ class Subscription(object):
             cfg.write(fp)
 
     @classmethod
-    def from_file(cls, path, index_dir, content_dir, cache_dir):
+    def from_file(cls, path, index_dir, app_content_dir, cache_dir):
         '''Load a ``Subscription`` from its config file.
 
         :rtype object:
@@ -150,17 +195,28 @@ class Subscription(object):
                 'No config file exists at {!r}.'.format(path))
 
         log.debug('Read subscription from {!r}.'.format(path))
-        config_dir, name = os.path.split(path)
         sec = 'subscription'
+
+        # mandatory properties
+        config_dir, name = os.path.split(path)
         feed_url = cfg.get(sec, 'url')
+
+        # optional properties
         try:
             max_episodes = cfg.getint(sec, 'max_episodes')
         except configparser.NoOptionError:
             max_episodes = -1
+
         try:
             filename_template = cfg.get(sec, 'filename_template')
         except configparser.NoOptionError:
             filename_template = None
+
+        try:
+            content_dir = cfg.get(sec, 'content_dir')
+        except configparser.NoOptionError:
+            content_dir = None
+
         try:
             title = cfg.get(sec, 'title')
         except configparser.NoOptionError:
@@ -168,8 +224,10 @@ class Subscription(object):
 
         return cls(
             name, feed_url,
-            config_dir, index_dir, content_dir, cache_dir,
-            title=title, max_episodes=max_episodes,
+            config_dir, index_dir, app_content_dir, cache_dir,
+            title=title,
+            max_episodes=max_episodes,
+            content_dir=content_dir,
             filename_template=filename_template
         )
 

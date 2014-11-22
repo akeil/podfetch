@@ -134,6 +134,7 @@ def test_load_subscription_from_file(tmpdir):
         'max_episodes = 30',
         'filename_template = template',
         'title = the_title',
+        'content_dir = subscription_content_dir',
     ]))
 
     sub = Subscription.from_file(
@@ -145,6 +146,7 @@ def test_load_subscription_from_file(tmpdir):
     assert sub.title == 'the_title'
     assert sub.max_episodes == 30
     assert sub.filename_template == 'template'
+    assert sub.content_dir == 'subscription_content_dir'
 
 
 def test_load_nonexisting_raises_error():
@@ -161,6 +163,7 @@ def test_save(tmpdir, sub):
     sub.max_episodes = 123
     sub.filename_template = 'template'
     sub.title = 'subscription-title'
+    sub.content_dir = 'my-content-dir'
     sub.save()
     filename = os.path.join(sub.config_dir, 'name')
     with open(filename) as f:
@@ -170,6 +173,7 @@ def test_save(tmpdir, sub):
     assert '123' in ''.join(lines)
     assert 'template' in ''.join(lines)
     assert 'subscription-title' in ''.join(lines)
+    assert 'my-content-dir' in ''.join(lines)
 
 
 def test_save_and_load_index(sub):
@@ -464,6 +468,25 @@ def test_episode_force_download(monkeypatch, tmpdir, sub):
     # check that the forced file was actually overwritten
     with open(local_path) as f:
         assert f.read() != existing_content
+
+
+def test_content_dir_from_subscription_config(monkeypatch, sub, tmpdir):
+    '''Assert that if subscription defines a different `content_dir`,
+    new episodes are downloaded to that directory.'''
+    mock_download = with_mock_download(monkeypatch)
+    #with_dummy_feed(monkeypatch)
+
+    content_dir = tmpdir.mkdir('episodes')
+    sub.content_dir = str(content_dir)
+
+    files = [
+        ('http://example.com/1', 'audio/mpeg', None)
+    ]
+    episode = Episode(sub, 'id', files=files)
+    episode.download()
+    assert len(episode.files) > 0
+    for unused, unused_also, path in episode.files:
+        assert os.path.dirname(path) == str(content_dir)
 
 
 def test_generate_filename_episode(sub):
