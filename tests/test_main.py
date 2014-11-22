@@ -88,11 +88,17 @@ def test_add(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     url = 'http://example.com'
     name = 'new-subscription'
+    content_dir = 'my-content-dir'
     max_epis = 10
-    argv = ['add', url, '--name', name, '--max-episodes', str(max_epis)]
+    argv = [
+        'add', url,
+        '--name', name,
+        '--directory', content_dir, 
+        '--max-episodes', str(max_epis)
+    ]
     main.main(argv=argv)
     mock_app.add_subscription.assert_called_once_with(
-        url, name=name, max_episodes=max_epis)
+        url, name=name, content_dir=content_dir, max_episodes=max_epis)
     assert mock_app.update_one.called
 
 
@@ -105,7 +111,7 @@ def test_add_no_update(monkeypatch, mock_app):
         '--no-update']
     main.main(argv=argv)
     mock_app.add_subscription.assert_called_once_with(
-        url, name=name, max_episodes=max_epis)
+        url, name=name, content_dir=None, max_episodes=max_epis)
     assert not mock_app.update_one.called
 
 

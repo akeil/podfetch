@@ -337,6 +337,14 @@ def setup_command_parsers(parent_parser):
             ' Default is "-1" (unlimited).'),
     )
     add.add_argument(
+        '-d', '--directory',
+        dest='content_dir',
+        help=('Download episodes to the given directory.'
+            ' If omitted, the application default and a '
+            ' subdirectory with the subscription name.'
+        )
+    )
+    add.add_argument(
         '--no-update',
         action='store_true',
         help='Do not immediately fetch content for the new subscription.',
@@ -345,6 +353,7 @@ def setup_command_parsers(parent_parser):
     def do_add(app, args):
         sub = app.add_subscription(args.url,
             name=args.name,
+            content_dir=args.content_dir,
             max_episodes=args.max_episodes
         )
         if not args.no_update:
