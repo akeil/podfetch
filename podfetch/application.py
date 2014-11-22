@@ -219,7 +219,7 @@ class Podfetch(object):
             subscription.content_dir)
 
     def add_subscription(self, url,
-        name=None, content_dir=None, max_episodes=-1):
+        name=None, content_dir=None, max_episodes=-1, filename_template=None):
         '''Add a new subscription.
 
         :param str url:
@@ -236,6 +236,9 @@ class Podfetch(object):
         :param int max_episodes:
             Keep at max *n* downloaded episodes for this subscription.
             Defaults to ``-1`` (unlimited).
+        :param str filename_template:
+            Template string for episode filenames.
+            If omitted, application default is used.
         :rtype object:
             A :class:`Subscription` instance.
         '''
@@ -248,7 +251,8 @@ class Podfetch(object):
             self.content_dir,
             self.cache_dir,
             content_dir=content_dir,
-            max_episodes=max_episodes
+            max_episodes=max_episodes,
+            filename_template=filename_template
         )
         sub.save()
         self.hooks.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)

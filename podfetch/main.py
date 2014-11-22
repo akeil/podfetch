@@ -337,6 +337,13 @@ def setup_command_parsers(parent_parser):
             ' Default is "-1" (unlimited).'),
     )
     add.add_argument(
+        '-t', '--template',
+        help=('Filename template for this subscription,'
+            ' overrides application default.'
+            'Variables: {title}, {subscription_name}, {pubdate}, {id}, ...'
+            ' see README for complete list.'),
+    )
+    add.add_argument(
         '-d', '--directory',
         dest='content_dir',
         help=('Download episodes to the given directory.'
@@ -354,7 +361,8 @@ def setup_command_parsers(parent_parser):
         sub = app.add_subscription(args.url,
             name=args.name,
             content_dir=args.content_dir,
-            max_episodes=args.max_episodes
+            max_episodes=args.max_episodes,
+            filename_template=args.template,
         )
         if not args.no_update:
             app.update_one(sub.name)
