@@ -218,7 +218,8 @@ class Podfetch(object):
         self.hooks.run_hooks(SUBSCRIPTION_UPDATED, subscription.name,
             subscription.content_dir)
 
-    def add_subscription(self, url, name=None, max_episodes=-1):
+    def add_subscription(self, url,
+        name=None, content_dir=None, max_episodes=-1):
         '''Add a new subscription.
 
         :param str url:
@@ -228,6 +229,10 @@ class Podfetch(object):
             If name is *None*, the name will be derived from the url.
             If necessary, the ``name`` will be modified so that it is unique
             within the subscriptions dir.
+        :param str content_dir:
+            Download new episodes into this directory.
+            If not given, a subdirectory in the application wide ``content_dir``
+            is used. The subdirectory is then named after the subscription.
         :param int max_episodes:
             Keep at max *n* downloaded episodes for this subscription.
             Defaults to ``-1`` (unlimited).
@@ -238,13 +243,15 @@ class Podfetch(object):
             name = name_from_url(url)
         uname = self._make_unique_name(name)
         sub = Subscription(uname, url,
-            self.subscriptions_dir, self.index_dir,
-            self.content_dir, self.cache_dir
+            self.subscriptions_dir,
+            self.index_dir,
+            self.content_dir,
+            self.cache_dir,
+            content_dir=content_dir,
+            max_episodes=max_episodes
         )
         sub.save()
-
         self.hooks.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
-
         return sub
 
     def remove_subscription(self, name, delete_content=True):
@@ -259,8 +266,10 @@ class Podfetch(object):
             Whether to delete downloaded audio file from that subscription.
             Defaults to *True*.
         '''
+        sub = self.subscription_for_name(name)
         filename = os.path.join(self.subscriptions_dir, name)
-        content_dir = os.path.join(self.content_dir, name)
+        #content_dir = os.path.join(self.content_dir, name)
+        content_dir = sub.content_dir
         log.info('Delete subscription at {!r}.'.format(filename))
         try:
             os.unlink(filename)
@@ -270,6 +279,15 @@ class Podfetch(object):
 
         if delete_content:
             # TODO: this should be implemented by the Subscription class
+            indexfile = sub.index_file
+            try:
+                os.unlink(indexfile)
+            except os.error as e:
+                if e.errno != os.errno.ENOENT:
+                    raise
+
+            # TODO remove cached HTTP header values
+
             log.info('Delete contents at {!r}.'.format(content_dir))
             shutil.rmtree(content_dir, ignore_errors=True)
 

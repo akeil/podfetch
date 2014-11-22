@@ -96,6 +96,10 @@ def test_remove_subscription(app):
     app.remove_subscription('the-name')
     assert sub.name not in [s.name for s in app.iter_subscriptions()]
 
+    #TODO
+    # assert indexfile removed
+    # assert cached header values removed
+
 
 def test_remove_subscription_content(app):
     sub = app.add_subscription('some-url', 'the-name')
@@ -111,7 +115,7 @@ def test_remove_subscription_content(app):
 
 def test_keep_subscription_content(app):
     sub = app.add_subscription('some-url', 'the-name')
-    content_dir = os.path.join(app.content_dir, 'the-name')
+    content_dir = sub.content_dir
     os.mkdir(content_dir)
     content_file = os.path.join(content_dir, 'somefile')
     with open(content_file, 'w') as f:
