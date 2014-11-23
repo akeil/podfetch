@@ -444,6 +444,9 @@ class Subscription(object):
         delete_if_exists(self._etag_path)
         delete_if_exists(self._modified_path)
 
+    def __repr__(self):
+        return '<Subscription name={s.name!r}>'.format(s=self)
+
 
 class Episode(object):
     '''Relates to a single entry in a Subscriptions feed.
@@ -621,6 +624,9 @@ class Episode(object):
         while self.files:
             __, __, local_file = self.files.pop()
             delete_if_exists(local_file)
+
+    def __repr__(self):
+        return '<Episode id={s.id!r}>'.format(s=self)
 
 
 def _fetch_feed(url, etag=None, modified=None):
