@@ -122,7 +122,7 @@ def _create_app(cfg):
     try:
         index_dir = cfg.get('default', 'index_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
-        cache_dir = os.path.expanduser( os.path.join(
+        index_dir = os.path.expanduser( os.path.join(
             '~', '.local', 'share', 'podfetch'))
 
     try:
