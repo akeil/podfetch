@@ -400,7 +400,7 @@ def setup_command_parsers(parent_parser):
         log.info('Purged {} files...'.format(len(result)))
         for filename in result:
             log.info('Purged {!r}'.format(filename))
-        if result and simulate:
+        if result and args.simulate:
             log.warning('Simulation - no files were deleted.')
 
     purge.set_defaults(func=do_purge)
