@@ -2,6 +2,6 @@
 # -*- coding: utf-8 -*-
 
 # remember setup.py
-__version__ = '0.3.2'
+__version__ = '0.4.0'
 __author__ = 'Alexander Keil'
 __email__ = 'alex@akeil.net'
