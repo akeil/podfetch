@@ -467,6 +467,35 @@ def setup_command_parsers(parent_parser):
 
     show.set_defaults(func=do_show)
 
+    # del ----------------------------------------------------------------------
+    dele = subs.add_parser(
+        'del',
+        help='Delete subscriptions.',
+    )
+    dele.add_argument(
+        'subscription_names',
+        metavar='NAME',
+        nargs='+',
+        help='Name(s) of subscription(s) to delete.'
+    )
+    dele.add_argument(
+        '--episodes', '-e',
+        action='store_true',
+        help=('Also delete downloaded episodes.'
+            ' Default is to keep episodes.'),
+    )
+
+    def do_dele(app, args):
+        for name in args.subscription_names:
+            try:
+                app.remove_subscription(name, delete_content=args.episodes)
+            except NoSubscriptionError:
+                log.warning('No subscription named {!r}.\n'.format(name))
+
+        return EXIT_OK
+
+    dele.set_defaults(func=do_dele)
+
     # purge --------------------------------------------------------------------
     purge = subs.add_parser(
         'purge',

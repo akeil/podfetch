@@ -122,6 +122,28 @@ def test_add_no_update(monkeypatch, mock_app):
     assert not mock_app.update_one.called
 
 
+def test_remove(monkeypatch, mock_app):
+    with_mock_app(monkeypatch, mock_app)
+    name = 'my-subscription'
+    argv = ['del', name]
+    main.main(argv=argv)
+    mock_app.remove_subscription.assert_called_once_with(
+        name,
+        delete_content=False
+    )
+
+
+def test_remove_content(monkeypatch, mock_app):
+    with_mock_app(monkeypatch, mock_app)
+    name = 'my-subscription'
+    argv = ['del', name, '--episodes']
+    main.main(argv=argv)
+    mock_app.remove_subscription.assert_called_once_with(
+        name,
+        delete_content=True
+    )
+
+
 def test_custom_config(monkeypatch):
     monkeypatch.setattr(main, 'read_config', mock.MagicMock())
     cfg_path = '/custom/config/file'

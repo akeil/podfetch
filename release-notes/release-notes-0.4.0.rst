@@ -65,3 +65,19 @@ If the subscription name is not specified, shows details for all:
 .. code:: shell-session
 
     $ podfetch show
+
+
+New command **del** to remove subscriptions
+and optionally downloaded episodes.
+
+To remove subscriptions "foo" and "bar":
+
+.. code:: shell-session
+
+    $ podfetch del foo bar
+
+To remove subscription "foo" including downloaded episodes:
+
+.. code:: shell-session
+
+    $ podfetch del foo --episodes
