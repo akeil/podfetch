@@ -421,6 +421,52 @@ def setup_command_parsers(parent_parser):
         return 0
     add.set_defaults(func=do_add)
 
+    # show ---------------------------------------------------------------------
+    show = subs.add_parser(
+        'show',
+        help='View subscription details.',
+    )
+    show.add_argument(
+        'subscription_names',
+        metavar='NAME',
+        nargs='*',
+        help=('Name(s) of subscriptions to show.'
+            ' If not given, show all.'),
+    )
+
+    out = sys.stdout
+
+    def render(s):
+        out.write('{:<15}: {}\n'.format('Title', s.title))
+        out.write('{:<15}: {}\n'.format('URL', s.feed_url))
+        out.write('{:<15}: {}\n'.format('Directory', s.content_dir))
+        out.write('{:<15}: {}\n'.format(
+            'Max Episodes',
+            s.max_episodes if s.max_episodes > 0 else 'unlimited'
+
+        ))
+        out.write('{:<15}: {}\n'.format(
+            'Template',
+            s.filename_template or '[default] {}'.format(s.app_filename_template)
+        ))
+        out.write('{:<15}: {}/{}\n'.format('Config File', s.config_dir, s.name))
+        out.write('\n')
+
+    def do_show(app, args):
+        if args.subscription_names:
+            for name in args.subscription_names:
+                try:
+                    render(app.subscription_for_name(name))
+                except NoSubscriptionError:
+                    log.warning('No subscription named {!r}.\n'.format(name))
+        else:
+            for subscription in app.iter_subscriptions():
+                render(subscription)
+
+        return EXIT_OK
+
+    show.set_defaults(func=do_show)
+
     # purge --------------------------------------------------------------------
     purge = subs.add_parser(
         'purge',
