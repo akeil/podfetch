@@ -7,6 +7,7 @@ import sys
 import os
 import logging
 from logging import handlers
+from textwrap import wrap
 import argparse
 try:
     import configparser  # python 3
@@ -31,6 +32,7 @@ SYSLOG_FMT = '%(levelname)s [%(name)s]: %(message)s'
 LOGFILE_FMT = '%(asctime)s %(levelname)s [%(name)s]: %(message)s'
 DEFAULT_LOG_LEVEL = 'warning'
 
+CFG_DEFAULT_SECTION = 'default'
 SYSTEM_CONFIG_PATH = '/etc/podfetch.conf'
 DEFAULT_USER_CONFIG_PATH = os.path.expanduser(
     '~/.config/podfetch/podfetch.conf')
@@ -114,31 +116,31 @@ def _create_app(cfg):
         An :class:`application.Podfetch` instance.
     '''
     try:
-        config_dir = cfg.get('default', 'config_dir')
+        config_dir = cfg.get(CFG_DEFAULT_SECTION, 'config_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
         config_dir = os.path.expanduser( os.path.join(
             '~', '.config', 'podfetch'))
 
     try:
-        index_dir = cfg.get('default', 'index_dir')
+        index_dir = cfg.get(CFG_DEFAULT_SECTION, 'index_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
         index_dir = os.path.expanduser( os.path.join(
             '~', '.local', 'share', 'podfetch'))
 
     try:
-        content_dir = cfg.get('default', 'content_dir')
+        content_dir = cfg.get(CFG_DEFAULT_SECTION, 'content_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
         content_dir = os.path.expanduser( os.path.join(
             '~', '.local', 'share', 'podfetch', 'content'))
 
     try:
-        cache_dir = cfg.get('default', 'cache_dir')
+        cache_dir = cfg.get(CFG_DEFAULT_SECTION, 'cache_dir')
     except (configparser.NoOptionError, configparser.NoSectionError):
         cache_dir = os.path.expanduser( os.path.join(
             '~', '.cache', 'podfetch'))
 
     try:
-        filename_template = cfg.get('default', 'filename_template')
+        filename_template = cfg.get(CFG_DEFAULT_SECTION, 'filename_template')
     except (configparser.NoOptionError, configparser.NoSectionError):
         filename_template = None
 
@@ -279,36 +281,86 @@ def setup_command_parsers(parent_parser):
     # list --------------------------------------------------------------------
     ls = subs.add_parser(
         'ls',
-        help='List subscriptions and downloaded files.'
+        help='List Episodes by date.'
     )
 
     ls.add_argument(
         'subscription_name',
+        metavar='NAME',
         nargs='*',
-        help=('The names of the subscriptions to be listed.'
-            ' If one or more names are given, lists downloaded files.'
-            ' If no name is given, prints a list of all subscriptions'
-            ' and no files.'),
+        help=('Names of subscriptions from which episodes are listed. If'
+            ' NAME(S) are given, episodes from these podcasts are shown.'
+            ' shown. If no name is given list episodes from all podcasts.'),
+    )
+
+    n_control = ls.add_mutually_exclusive_group()
+    n_control.add_argument(
+        '--newest', '-n',
+        metavar='N',
+        type=int,
+        help=('Control the number of episodes shown.'
+            ' Excludes the --all option.'),
+    )
+    n_control.add_argument(
+        '--all', '-a',
+        action='store_true',
+        help=('Do not limit the number of episodes shown.'
+            ' Excludes the --newest option.'),
     )
 
     def do_ls(app, args):
         out = sys.stdout
-        header = 'Podfetch Subscriptions'
+
+        header = 'Podfetch Episodes'
         out.write('{}\n'.format(header))
         out.write('{}\n'.format('-' * len(header)))
+
+        episodes = []
+
         if not args.subscription_name:
+            # no name is specified - list episodes from all subscriptions
             for subscription in app.iter_subscriptions():
-                out.write('{}\n'.format(subscription.name))
+                episodes += subscription.episodes
         else:
+            # names specified - list episodes from selected subscriptions 
             for name in args.subscription_name:
                 try:
                     sub = app.subscription_for_name(name)
-                    out.write('{}:\n'.format(sub.title))
-                    for episode in sub.episodes:
-                        out.write('- {}\n'.format(episode.title))
-                        out.write('  published {}-{:0>2d}-{:0>2d}\n'.format(*episode.pubdate))
+                    episodes += sub.episodes
                 except NoSubscriptionError:
-                    out.write('[No subscription named {!r}.]\n'.format(name))
+                    log.warning('No subscription named {!r}.\n'.format(name))
+
+        # sort all selected episodes by date, then reduce to N items
+        episodes.sort(key=lambda e: e.pubdate, reverse=True)
+        if not args.all:
+            limit = args.newest or 10  # arbritrary default
+            if limit < 0:
+                raise ValueError(('Invalid limit {} for ls.'
+                    ' Expected a positive integer').format(limit))
+
+            episodes = episodes[:limit]
+
+        # write episodes
+        lastdate = None
+        for episode in episodes:
+            curdate = '{:0>4}-{:0>2}-{:0>2}'.format(
+                episode.pubdate[0],
+                episode.pubdate[1],
+                episode.pubdate[2],
+            )
+            if lastdate is None or lastdate != curdate:
+                out.write('{}:\n'.format(curdate))
+                lastdate = curdate
+
+            out.write('\n     '.join(
+                wrap('[{}] {}'.format(
+                    episode.subscription.title,
+                    episode.title,
+                ),
+                70,
+                initial_indent=' - ',
+            )))
+            out.write('\n')
 
         return EXIT_OK
 
