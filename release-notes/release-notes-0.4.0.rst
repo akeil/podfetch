@@ -3,7 +3,7 @@ podfetch 0.4.0
 ##############
 Changes in **podfetch 0.4.0**:
 
-The **ls+* was now outputs episodes in reverse chronological order.
+The **ls** was now outputs episodes in reverse chronological order.
 The most recently published episodes are listed first.
 Episodes are sorted by date, even if episodes from multiple
 subscriptions are shown.
