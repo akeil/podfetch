@@ -1,0 +1,19 @@
+# Author: Alexander Keil <alex@akeil.net>
+
+pkgname=%%pkgname%%
+_pkgname=podfetch
+pkgver=%%version%%
+pkgrel=1
+pkgdesk=Command line client for fetching and managing podcasts
+arch=('any')
+depends=('python' 'python-feedparser')
+license=('GPL')
+url=("http://akeil.net")
+source=("http://akeil.net/code/${_pkgname}-${pkgver}.tar.gz")
+sha256sums=('%%sha256sum%%')
+
+package() {
+    cd "$srcdir/${_pkgname}-${pkgver}"
+    echo "${pkgdir}"
+    python setup.py --quiet install --root="${pkgdir}" --optimize=1
+}
