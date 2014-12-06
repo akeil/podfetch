@@ -36,9 +36,6 @@ def hookman(tmpdir):
         useargs.write('echo $1 $2 > {}'.format(args_marker))
         os.chmod(str(useargs), perms)
 
-        import shutil
-        shutil.copy(str(hook_file), '/home/akeil/event')
-
     return hm
 
 
