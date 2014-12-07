@@ -36,6 +36,7 @@ nosetests.xml
 *.geany
 todo
 release.py
+*.bak
 
 # Complexity
 output/*.html

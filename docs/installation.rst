@@ -52,8 +52,8 @@ The configuration file looks like this (with default values)::
     #   {id}:           Id for the Episode
     #   {ext}:          File extension.
     #   {kind}:         audio or video
-    # Specifying an extension ub the template is optional; missing extension
+    # Specifying an extension in the template is optional; missing extension
     # is added automatically
     filename_template = {pub_date}-{title}
 
-**You do not have to create a config file if the defaults are ok.**
+**You do not have to create a config file if the defaults are OK.**

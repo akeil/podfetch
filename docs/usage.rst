@@ -104,6 +104,6 @@ Sync downloaded episodes to some other location::
 Python
 ######
 
-To use PodFetch in a project::
+To use podfetch in a project::
 
     import podfetch

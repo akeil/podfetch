@@ -34,7 +34,7 @@ Subscriptions
 =============
 Subscriptions are kept as ini-files under ``~/.config/podfetch/subscriptions``
 with one file per feed.
-The files look like this (``url`` is the only mandatorysetting):
+The files look like this (``url`` is the only mandatory setting):
 
 .. code:: ini
 

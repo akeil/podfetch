@@ -76,7 +76,7 @@ As root::
     # groupadd anacron
     # chown root:anacron /var/spool/anacron
     # chmod g+w /var/spool/anacron
-    # adduser USERNAME anacron
+    # useradd USERNAME anacron
 
 Next, create a user-specific anacron file.
 Copy the system-wide file to some place in your home directory::
