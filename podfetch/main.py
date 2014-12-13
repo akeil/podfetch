@@ -293,6 +293,12 @@ def setup_command_parsers(parent_parser):
             ' shown. If no name is given list episodes from all podcasts.'),
     )
 
+    ls.add_argument(
+        '--path', '-p',
+        action='store_true',
+        help='Print paths instead of titles.',
+    )
+
     n_control = ls.add_mutually_exclusive_group()
     n_control.add_argument(
         '--newest', '-n',
@@ -311,9 +317,10 @@ def setup_command_parsers(parent_parser):
     def do_ls(app, args):
         out = sys.stdout
 
-        header = 'Podfetch Episodes'
-        out.write('{}\n'.format(header))
-        out.write('{}\n'.format('-' * len(header)))
+        if not args.path:
+            header = 'Podfetch Episodes'
+            out.write('{}\n'.format(header))
+            out.write('{}\n'.format('-' * len(header)))
 
         episodes = []
 
@@ -348,19 +355,24 @@ def setup_command_parsers(parent_parser):
                 episode.pubdate[1],
                 episode.pubdate[2],
             )
-            if lastdate is None or lastdate != curdate:
-                out.write('{}:\n'.format(curdate))
-                lastdate = curdate
+            if args.path:
+                for __, __, local in episode.files:
+                    out.write(local)
+                    out.write('\n')
+            else:
+                if lastdate is None or lastdate != curdate:
+                    out.write('{}:\n'.format(curdate))
+                    lastdate = curdate
 
-            out.write('\n     '.join(
-                wrap('[{}] {}'.format(
-                    episode.subscription.title,
-                    episode.title,
-                ),
-                70,
-                initial_indent=' - ',
-            )))
-            out.write('\n')
+                out.write('\n     '.join(
+                    wrap('[{}] {}'.format(
+                        episode.subscription.title,
+                        episode.title,
+                    ),
+                    70,
+                    initial_indent=' - ',
+                )))
+                out.write('\n')
 
         return EXIT_OK
 

@@ -40,6 +40,7 @@ def mock_app(tmpdir):
     app.update_one = mock.MagicMock()
     app.add_subscription = mock.MagicMock()
     app.remove_subscription = mock.MagicMock()
+    app.subscription_for_name = mock.MagicMock()
     app.purge_all = mock.MagicMock()
     app.purge_one = mock.MagicMock()
 
@@ -52,6 +53,9 @@ def with_mock_app(monkeypatch, app):
         return app
 
     monkeypatch.setattr(main, '_create_app', mock_app)
+
+
+# update ---------------------------------------------------------------------
 
 
 def test_update(monkeypatch, mock_app):
@@ -82,6 +86,9 @@ def test_update_many(monkeypatch, mock_app):
     main.main(argv=argv)
     mock_app.update_one.assert_any_call('subscription-1', force=False)
     mock_app.update_one.assert_any_call('subscription-2', force=False)
+
+
+# add ------------------------------------------------------------------------
 
 
 def test_add(monkeypatch, mock_app):
@@ -122,6 +129,9 @@ def test_add_no_update(monkeypatch, mock_app):
     assert not mock_app.update_one.called
 
 
+# remove ---------------------------------------------------------------------
+
+
 def test_remove(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     name = 'my-subscription'
@@ -142,6 +152,23 @@ def test_remove_content(monkeypatch, mock_app):
         name,
         delete_content=True
     )
+
+
+# ls -------------------------------------------------------------------------
+
+
+def test_ls():
+    pass
+
+
+# purge ----------------------------------------------------------------------
+
+
+def test_purge():
+    pass
+
+
+# config ---------------------------------------------------------------------
 
 
 def test_custom_config(monkeypatch):
@@ -189,14 +216,6 @@ def test_read_cfg(tmpdir, monkeypatch):
     assert cfg.get('default', 'content_dir') == override_content_dir
     assert cfg.get('default', 'cache_dir') == default_cache_dir
     assert cfg.get('default', 'filename_template') == system_wide_template
-
-
-def test_remove():
-    pass
-
-
-def test_purge():
-    pass
 
 
 if __name__ == '__main__':
