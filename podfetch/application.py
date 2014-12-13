@@ -199,6 +199,7 @@ class Podfetch(object):
 
         def update_one(subscription, force=False):
             log.info('Update {!r}.'.format(subscription.name))
+            initial_episode_count = len(subscription.episodes)
             try:
                 subscription.update(force=force)
             except Exception as e:
@@ -207,10 +208,12 @@ class Podfetch(object):
             finally:
                 tasks.task_done()
 
-            # TODO: with lock: ...?
-            # TODO: only if new episodes were downloaded
-            self.hooks.run_hooks(SUBSCRIPTION_UPDATED, subscription.name,
-                subscription.content_dir)
+            if initial_episode_count < len(subscription.episodes):
+                self.hooks.run_hooks(
+                    SUBSCRIPTION_UPDATED,
+                    subscription.name,
+                    subscription.content_dir
+                )
 
         num_workers = self.update_threads
         use_threading = num_tasks > 1 and num_workers > 1

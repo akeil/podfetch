@@ -13,7 +13,6 @@ the *paths* of downloaded files instead of episode titles:
     $ podfetch ls -p
     $ podfetch ls -p foo bar
 
-
 The **update command** uses multiple threads for parallel download.
 A new config option must be set to enable this:
 
@@ -22,4 +21,7 @@ A new config option must be set to enable this:
     [default]
     update_threads = 4
     
+The **hook** for *subscription_updated* is only run if new episodes
+were downloaded (was: run after each update).
+
 Improved error handling for invalid subscription files.
