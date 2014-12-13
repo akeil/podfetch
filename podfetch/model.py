@@ -67,6 +67,11 @@ SUPPORTED_CONTENT = {
 # for generating enclosure-filenames
 DEFAULT_FILENAME_TEMPLATE = '{pub_date}_{id}'
 
+# cache keys
+CACHE_ETAG = 'etag'
+CACHE_MODIFIED = 'modified'
+CACHE_ALL = [CACHE_ETAG, CACHE_MODIFIED,]
+
 
 class Subscription(object):
     '''Represents a RSS/Atom feed that the user has subscribed.
@@ -281,7 +286,7 @@ class Subscription(object):
         Does **not include** the subscription file,
         which is managed by the application.
         '''
-        self._clear_cached_headers()
+        self._cache_forget()
         delete_if_exists(self.index_file)
         if not keep_episodes:
             for episode in self.episodes:
@@ -316,8 +321,11 @@ class Subscription(object):
             In addition to the error code, a :class:`FeedNotFoundError`
             or :class:`FeedGoneError` can be raised.
         '''
-        etag, modified = self._get_cached_headers()
-        feed = _fetch_feed(self.feed_url, etag=etag, modified=modified)
+        feed = _fetch_feed(
+            self.feed_url,
+            etag=self._cache_get(CACHE_ETAG),
+            modified=self._cache_get(CACHE_MODIFIED),
+        )
         log.debug('Feed status is {}'.format(feed.status))
 
         if feed.status == 304:  # not modified
@@ -336,7 +344,8 @@ class Subscription(object):
         finally:
             self._save_index()
         # store etag, modified after *successful* update
-        self._store_cached_headers(feed.get('etag'), feed.get('modified'))
+        self._cache_put(CACHE_ETAG, feed.get('etag'))
+        self._cache_put(CACHE_MODIFIED, feed.get('modified'))
         return rv
 
     def _update_entries(self, feed, force=False):
@@ -400,64 +409,47 @@ class Subscription(object):
 
         return deleted_files
 
-    @property
-    def _etag_path(self):
-        return os.path.join(self.cache_dir, '{}.etag'.format(self.name))
+    # cache ------------------------------------------------------------------
 
-    @property
-    def _modified_path(self):
-        return os.path.join(self.cache_dir, '{}.modified'.format(self.name))
+    def _cache_get(self, key):
+        result = None
+        try:
+            with open(self._cache_path(key)) as f:
+                result = f.read()
+        except IOError as e:
+            if e.errno != os.errno.ENOENT:
+                raise
 
-    def _get_cached_headers(self):
-        '''Try to get the cached HTTP headers for this subscription.
+        return result or None  # convert '' to None
 
-        :rtype tuple:
-            Returns a tuple (etag, modified) with the values for these
-            HTTP headers.
-        '''
-
-        def read(path):
+    def _cache_put(self, key, value):
+        path = self._cache_path(key)
+        forget = not bool(value)
+        if not forget:
             try:
-                with open(path) as f:
-                    content = f.read()
-                    return content or None
-            except IOError as e:
-                if e.errno == os.errno.ENOENT:
-                    return None
-                else:
-                    raise
-
-        etag = read(self._etag_path)
-        modified = read(self._modified_path)
-        return etag, modified
-
-    def _store_cached_headers(self, etag, modified):
-        '''Store the values for the ``etag`` and ``modified`` headers
-        in the cache.
-        '''
-
-        def write(content, path):
-            if content:
                 require_directory(os.path.dirname(path))
-                try:
-                    with open(path, 'w') as f:
-                        f.write(content)
-                except IOError as e:
-                    log.error(e)
-            else:
-                try:
-                    os.unlink(path)
-                except OSError as e:
-                    if e.errno != os.errno.ENOENT:
-                        raise
+                with open(path, 'w') as f:
+                    f.write(value)
+            except Error as e:
+                log.error('Error writing cache file: {!r}'.format(e))
+                forget = True
 
-        write(etag, self._etag_path)
-        write(modified, self._modified_path)
+        # value was empty or writing failed
+        if forget:
+            self._cache_forget(key)
 
-    def _clear_cached_headers(self):
-        '''Forget (delete) the cached values from HTTP headers.'''
-        delete_if_exists(self._etag_path)
-        delete_if_exists(self._modified_path)
+    def _cache_forget(self, *keys):
+        '''Remove entries for the given cache keys.
+        Remove all entries if no key is given.'''
+        for key in keys or CACHE_ALL:
+            try:
+                delete_if_exists(self._cache_path(key))
+            except Exception as e:
+                log.error('Failed to delete cache {!r} ofr {!r}.'.format(
+                    key, self.name))
+
+    def _cache_path(self, key):
+        return os.path.join(self.cache_dir, '{}.{}'.format(self.name, key))
 
     def __repr__(self):
         return '<Subscription name={s.name!r}>'.format(s=self)

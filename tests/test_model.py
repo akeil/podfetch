@@ -246,38 +246,34 @@ def test_delete(sub, monkeypatch):
 
     sub.update()
     assert len(os.listdir(sub.content_dir)) > 0
-    assert os.path.isfile(sub._etag_path)
-    assert os.path.isfile(sub._modified_path)
+    assert os.path.isfile(sub._cache_path('etag'))
+    assert os.path.isfile(sub._cache_path('modified'))
     assert os.path.isfile(sub.index_file)
 
     sub.delete()
     assert not os.path.exists(sub.content_dir)
-    assert not os.path.exists(sub._etag_path)
-    assert not os.path.exists(sub._modified_path)
+    assert not os.path.exists(sub._cache_path('etag'))
+    assert not os.path.exists(sub._cache_path('modified'))
     assert not os.path.exists(sub.index_file)
 
 
-def test_write_read_cached_headers(sub):
-    '''Write ``etag`` and ``modified`` headers to cache and retrieve them
-    correctly.'''
-    etag = 'etag'
-    modified = 'modified'
-    sub._store_cached_headers(etag, modified)
-    read_etag, read_modified = sub._get_cached_headers()
-    assert read_etag == etag
-    assert read_modified == modified
+def test_write_read_cache(sub):
+    '''Write to cache and retrieve correctly.'''
+    data = {
+        'foo': 'xyz',
+        'bar': 'abc',
+        'None': None,
+    }
+    for k, v in data.items():
+        sub._cache_put(k, v)
+
+    for k in data.keys():
+        assert sub._cache_get(k) == data[k]
 
 
-def test_write_read_cached_headers_empty(sub):
-    '''Make sure that if no ``etag`` or ``modified`` header is received,
-    any existing cached haeder is cleared.
-    '''
-    etag = None
-    modified = None
-    sub._store_cached_headers(etag, modified)
-    read_etag, read_modified = sub._get_cached_headers()
-    assert read_etag is None
-    assert read_modified is None
+def test_write_read_cache_empty(sub):
+    '''Reading non-existent key from cache should be None.'''
+    assert sub._cache_get('does-not-exist') is None
 
 
 def test_apply_updates_max_episodes(sub, monkeypatch):
@@ -311,17 +307,16 @@ def test_update_feed_unchanged(sub, monkeypatch):
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
-    sub._store_cached_headers('etag-value', 'modified-value')
-    # sub._apply_updates = mock.MagicMock()
+    sub._cache_put('etag', 'etag-value')
+    sub._cache_put('modified', 'modified-value')
     sub._update_entries = mock.MagicMock()
 
     rv = sub.update()
 
     assert rv == 0
     assert not sub._update_entries.called
-    etag, modified = sub._get_cached_headers()
-    assert etag == 'etag-value'
-    assert modified == 'modified-value'
+    assert sub._cache_get('etag') == 'etag-value'
+    assert sub._cache_get('modified') == 'modified-value'
 
 
 def test_forced_update_feed_unchanged(sub, monkeypatch):
@@ -329,7 +324,8 @@ def test_forced_update_feed_unchanged(sub, monkeypatch):
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
-    sub._store_cached_headers('etag-value', 'modified-value')
+    sub._cache_put('etag', 'etag-value')
+    sub._cache_put('modified', 'modified-value')
 
     rv = sub.update(force=True)
 
@@ -345,15 +341,15 @@ def test_update_store_feed_headers(sub, monkeypatch):
         return_modified='new-modified')
     with_mock_download(monkeypatch)
 
-    sub._store_cached_headers('initial-etag', 'intial-modified')
+    sub._cache_put('etag', 'initial-etag')
+    sub._cache_put('modified', 'intial-modified')
     sub._update_entries = mock.MagicMock()
 
     sub.update()
 
     assert sub._update_entries.called
-    etag, modified = sub._get_cached_headers()
-    assert etag == 'new-etag'
-    assert modified == 'new-modified'
+    assert sub._cache_get('etag') == 'new-etag'
+    assert sub._cache_get('modified') == 'new-modified'
 
 
 def test_failed_update_no_store_feed_headers(sub, monkeypatch):
@@ -363,15 +359,15 @@ def test_failed_update_no_store_feed_headers(sub, monkeypatch):
     with_dummy_feed(monkeypatch, return_etag='new-etag',
         return_modified='new-modified')
     with_mock_download(monkeypatch)
-    sub._store_cached_headers('initial-etag', 'initial-modified')
+    sub._cache_put('etag', 'initial-etag')
+    sub._cache_put('modified', 'initial-modified')
     sub._update_entries = mock.MagicMock(side_effect=ValueError)
 
     with pytest.raises(ValueError):
         sub.update()
 
-    etag, modified = sub._get_cached_headers()
-    assert etag == 'initial-etag'
-    assert modified == 'initial-modified'
+    assert sub._cache_get('etag') == 'initial-etag'
+    assert sub._cache_get('modified') == 'initial-modified'
 
 
 def test_update_feed_moved_permanently(sub, monkeypatch):
@@ -388,7 +384,8 @@ def test_update_feed_moved_permanently(sub, monkeypatch):
 
 
 def test_update_error_fetching_feed(sub, monkeypatch):
-    sub._store_cached_headers('initial-etag', 'initial-modified')
+    sub._cache_put('etag', 'initial-etag')
+    sub._cache_put('modified', 'initial-modified')
 
     def mock_fetch_feed(url, etag=None, modified=None):
         raise FeedNotFoundError
@@ -398,7 +395,8 @@ def test_update_error_fetching_feed(sub, monkeypatch):
     with pytest.raises(FeedNotFoundError):
         sub.update()
 
-    etag, modified = sub._get_cached_headers()
+    etag = sub._cache_get('etag')
+    modified = sub._cache_get('modified')
     assert etag == 'initial-etag'
     assert modified == 'initial-modified'
 
