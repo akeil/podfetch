@@ -255,8 +255,9 @@ def setup_command_parsers(parent_parser):
     )
 
     fetch.add_argument(
-        'subscription_name',
+        'subscription_names',
         nargs='*',
+        metavar='NAME',
         help=('The names of the subscriptions to be updated.'
             ' If no name is given, all subscriptions are updated.'),
     )
@@ -269,13 +270,8 @@ def setup_command_parsers(parent_parser):
     )
 
     def do_update(app, args):
-        if not args.subscription_name:
-            return app.update_all(force=args.force)
-        else:
-            for name in args.subscription_name:
-                app.update_one(name, force=args.force)
-            # TODO rv
-            return 0
+        rv = app.update(force=args.force, *args.subscription_names)
+        return rv
     fetch.set_defaults(func=do_update)
 
     # list --------------------------------------------------------------------
@@ -429,7 +425,7 @@ def setup_command_parsers(parent_parser):
             filename_template=args.template,
         )
         if not args.no_update:
-            app.update_one(sub.name)
+            app.update(sub.name)
         return 0
     add.set_defaults(func=do_add)
 

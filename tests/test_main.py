@@ -36,8 +36,7 @@ def mock_app(tmpdir):
         str(content_dir), str(cache_dir)
     )
 
-    app.update_all = mock.MagicMock()
-    app.update_one = mock.MagicMock()
+    app.update = mock.MagicMock()
     app.add_subscription = mock.MagicMock()
     app.remove_subscription = mock.MagicMock()
     app.subscription_for_name = mock.MagicMock()
@@ -62,30 +61,32 @@ def test_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update']
     main.main(argv=argv)
-    mock_app.update_all.assert_called_once_with(force=False)
+    mock_app.update.assert_called_once_with(force=False, *[])
 
 
 def test_forced_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update', '--force']
     main.main(argv=argv)
-    mock_app.update_all.assert_called_once_with(force=True)
+    mock_app.update.assert_called_once_with(force=True, *[])
 
 
 def test_update_one(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update', 'subscription-name']
     main.main(argv=argv)
-    mock_app.update_one.assert_called_once_with(
-        'subscription-name', force=False)
+    mock_app.update.assert_called_once_with(
+        force=False, *['subscription-name'])
 
 
 def test_update_many(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update', 'subscription-1', 'subscription-2']
     main.main(argv=argv)
-    mock_app.update_one.assert_any_call('subscription-1', force=False)
-    mock_app.update_one.assert_any_call('subscription-2', force=False)
+    mock_app.update.assert_called_once_with(
+        force=False,
+        *['subscription-1', 'subscription-2']
+    )
 
 
 # add ------------------------------------------------------------------------
@@ -110,7 +111,7 @@ def test_add(monkeypatch, mock_app):
         filename_template=None,
         max_episodes=max_epis
     )
-    assert mock_app.update_one.called
+    assert mock_app.update.called
 
 
 def test_add_no_update(monkeypatch, mock_app):
@@ -126,7 +127,7 @@ def test_add_no_update(monkeypatch, mock_app):
         content_dir=None,
         filename_template=None,
         max_episodes=max_epis)
-    assert not mock_app.update_one.called
+    assert not mock_app.update.called
 
 
 # remove ---------------------------------------------------------------------

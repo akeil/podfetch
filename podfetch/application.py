@@ -32,6 +32,7 @@ import tempfile
 import logging
 import subprocess
 import shlex
+import threading
 
 try:
     from shlex import quote as shlex_quote  # python 3.x
@@ -42,6 +43,12 @@ try:
     from urllib.parse import urlparse  # python 3.x
 except ImportError:
     from urlparse import urlparse  # python 2.x
+
+try:
+    import queue  # python 3.x
+except ImportError:
+    import Queue as queue  # python 2.x
+
 
 import feedparser
 
@@ -134,90 +141,82 @@ class Podfetch(object):
         '''
         return self._load_subscription(name)
 
-    def update_all(self, force=False):
-        '''Update all subscriptions.
+    def iter_subscriptions(self, *filter):
+        '''Iterate over all configured subscriptions.
+        *yields* a :class:`Subscription` instance for each configuration file
+        in the ``subscriptions_dir``.
 
-        Retrieves the feeds for each subscription
-        and downloads any new episodes.
+        :param list filter:
+            *optional* list of names.
+            If given, yields only subscriptions with matching name.
+        '''
+        for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
+            for name in filenames:
+                if name in filter or not filter:
+                    try:
+                        yield self._load_subscription(name)
+                    except Exception as e:  # TODO exception type
+                        log.error(e)
+
+    def update(self, force=False, *subscription_names):
+        '''Fetch new episodes for the given ``subscription_names``.
+
+        Subscriptions are updated in parallel if more than one subscription
+        name is supplied and if the number of worker threads is 2 or higher.
 
         :param bool force:
             *optional*,
             force update, ignore HTTP etag and not modified in feed.
             Re-download all episodes.
             Default is *True*.
-        :rtype int:
-            An *Error Code* describing the result.
+        :param list subscription_names:
+            The names of subscriptions to be updated.
+            Leave empty to update *all* subscriptions.
         '''
-        error_count = 0
-        total_count = 0
-        for subscription in self.iter_subscriptions():
-            total_count += 1
-            try:
-                rv = self._update_subscription(subscription, force=force)
-            except Exception as e:
-                log.error(('Failed to fetch feed {n!r}.'
-                    ' Error was: {e}').format(n=subscription.name, e=e))
-                error_count += 1
+        tasks = queue.Queue()
+        for subscription in self.iter_subscriptions(*subscription_names):
+            tasks.put(subscription)
 
-        self.hooks.run_hooks(UPDATES_COMPLETE)
-        log.info('Processed {} subscriptions, {} errors.'.format(total_count, error_count))
-        if error_count:
-            if error_count == total_count:
-                return ALL_FAILED
-            else:
-                return SOME_FAILED
-        else:
-            return OK
-
-    def iter_subscriptions(self):
-        '''Iterate over all configured subscriptions.
-        *yields* a :class:`Subscription` instance for each configuration file
-        in the ``subscriptions_dir``.
-        '''
-        for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
-            for name in filenames:
+        def work():
+            done = False
+            while not done:
                 try:
-                    yield self._load_subscription(name)
-                except Exception as e:  # TODO exception type
-                    log.error(e)
+                    subscription = tasks.get(block=False)
+                    update_one(subscription, force=force)
+                except queue.Empty:
+                    done = True
 
-    def update_one(self, name, force=False):
-        '''Update the subscription with the given ``name``.
+        def update_one(subscription, force=False):
+            log.info('Update {!r}.'.format(subscription.name))
+            try:
+                subscription.update(force=force)
+            except Exception as e:
+                log.error(('Failed to fetch feed {n!r}. Error was:'
+                    ' {e}').format(n=subscription.name, e=e))
+            finally:
+                tasks.task_done()
 
-        :param str name:
-            The name of the config file for the subscription.
-        :param bool force:
-            *optional*,
-            force update, ignore HTTP etag and not modified in feed.
-            Re-download all episodes.
-            Default is *False*.
-        '''
-        subscription = self._load_subscription(name)
-        self._update_subscription(subscription, force=force)
+            # TODO: with lock: ...?
+            # TODO: only if new episodes were downloaded
+            self.hooks.run_hooks(SUBSCRIPTION_UPDATED, subscription.name,
+                subscription.content_dir)
 
-    def _update_subscription(self, subscription, force=False):
-        '''Fetch the given feed, download any new episodes.
+        num_workers = 4
+        use_threading = len(subscription_names) > 1 and num_workers > 1
 
-        :param object subscription:
-            The :class:`Subscription` instance to update.
-        :rtype int:
-            An *Error Code* describing the result.
-            0: all is well or no new episodes
-            1: failed to fetch one or more new episodes
-            2: failed to fetch all episodes.
-        :raises:
-            Some Exception if we failed to fetch the feed.
-            Failed to look up the url
-            connection failure
-            bad url
-            authentication failure
-        '''
-        log.info('Update subscription {!r}.'.format(subscription.name))
-        subscription.update(force=force)
+        if use_threading:
+            for index in range(1, num_workers+1):
+                threading.Thread(
+                    name='update-thread-{}'.format(index),
+                    daemon=True,
+                    target=work,
+                ).run()
+        else:
+            work()
 
-        self.hooks.run_hooks(SUBSCRIPTION_UPDATED, subscription.name,
-            subscription.content_dir)
-
+        tasks.join()
+        self.hooks.run_hooks(UPDATES_COMPLETE)
+        
     def add_subscription(self, url,
         name=None, content_dir=None, max_episodes=-1, filename_template=None):
         '''Add a new subscription.
