@@ -99,17 +99,26 @@ class Podfetch(object):
     :var str filename_template:
         Template string used to generate filenames for downloaded episodes
         if no specific template is defined on the subscription level.
-
+    :var int update_threads:
+        The number of update threads to use.
     '''
 
     def __init__(self, config_dir, index_dir, content_dir, cache_dir,
-        filename_template=None):
+        filename_template=None, update_threads=1):
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
         self.index_dir = index_dir
         self.content_dir = content_dir
         self.cache_dir = cache_dir
-        self.hooks = HookManager(config_dir)
         self.filename_template = filename_template
+        self.update_threads = max(1, update_threads)
+        self.hooks = HookManager(config_dir)
+
+        log.debug('config_dir: {!r}.'.format(self.subscriptions_dir))
+        log.debug('index_dir: {!r}'.format(self.index_dir))
+        log.debug('content_dir: {!r}.'.format(self.content_dir))
+        log.debug('cache_dir: {!r}.'.format(self.cache_dir))
+        log.debug('filename_template: {!r}.'.format(self.filename_template))
+        log.debug('update_threads: {}'.format(self.update_threads))
 
     def _load_subscription(self, name):
         '''Load a :class:`Subscription` instance from its configuration file.
@@ -174,8 +183,10 @@ class Podfetch(object):
             Leave empty to update *all* subscriptions.
         '''
         tasks = queue.Queue()
+        num_tasks = 0
         for subscription in self.iter_subscriptions(*subscription_names):
             tasks.put(subscription)
+            num_tasks += 1
 
         def work():
             done = False
@@ -201,16 +212,18 @@ class Podfetch(object):
             self.hooks.run_hooks(SUBSCRIPTION_UPDATED, subscription.name,
                 subscription.content_dir)
 
-        num_workers = 4
-        use_threading = len(subscription_names) > 1 and num_workers > 1
+        num_workers = self.update_threads
+        use_threading = num_tasks > 1 and num_workers > 1
 
         if use_threading:
+            log.debug('Using {} update-threads.'.format(num_workers))
             for index in range(1, num_workers+1):
                 threading.Thread(
                     name='update-thread-{}'.format(index),
                     daemon=True,
                     target=work,
                 ).run()
+                log.debug('Started update-thread-{}.'.format(index))
         else:
             work()
 

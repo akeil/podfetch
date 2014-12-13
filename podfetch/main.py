@@ -147,14 +147,21 @@ def _create_app(cfg):
     except (configparser.NoOptionError, configparser.NoSectionError):
         filename_template = None
 
-    log.debug('Looking for subscriptions and hooks in {!r}.'.format(config_dir))
-    log.debug('Index directory is {!r}'.format(index_dir))
-    log.debug('Download audio files to {!r}.'.format(content_dir))
-    log.debug('Cache directory is {!r}.'.format(cache_dir))
-    log.debug('Global filename-template is {!r}.'.format(filename_template))
+    update_threads = None
+    try:
+        update_threads_str = cfg.get(CFG_DEFAULT_SECTION, 'update_threads')
+        try:
+            update_threads = int(update_threads_str)
+        except (ValueError, TypeError):
+            log.warning('Ignoring invalid value {!r} for {!r}.'.format(
+                update_threads_str, 'update_threads'))
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        pass
+
     return application.Podfetch(
         config_dir, index_dir, content_dir, cache_dir,
         filename_template=filename_template,
+        update_threads=update_threads,
     )
 
 

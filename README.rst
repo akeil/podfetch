@@ -29,6 +29,9 @@ Configuration options are:
     # filenames for downloaded episodes
     filename_template = {pub_date}-{title}
 
+    # number of threads for parallel downloads
+    update_threads = 8
+
 
 Subscriptions
 =============
