@@ -61,14 +61,14 @@ def test_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update']
     main.main(argv=argv)
-    mock_app.update.assert_called_once_with(force=False, *[])
+    mock_app.update.assert_called_once_with([], force=False)
 
 
 def test_forced_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     argv = ['update', '--force']
     main.main(argv=argv)
-    mock_app.update.assert_called_once_with(force=True, *[])
+    mock_app.update.assert_called_once_with([], force=True)
 
 
 def test_update_one(monkeypatch, mock_app):
@@ -76,7 +76,9 @@ def test_update_one(monkeypatch, mock_app):
     argv = ['update', 'subscription-name']
     main.main(argv=argv)
     mock_app.update.assert_called_once_with(
-        force=False, *['subscription-name'])
+        ['subscription-name'],
+        force=False, 
+    )
 
 
 def test_update_many(monkeypatch, mock_app):
@@ -84,8 +86,8 @@ def test_update_many(monkeypatch, mock_app):
     argv = ['update', 'subscription-1', 'subscription-2']
     main.main(argv=argv)
     mock_app.update.assert_called_once_with(
+        ['subscription-1', 'subscription-2'],
         force=False,
-        *['subscription-1', 'subscription-2']
     )
 
 

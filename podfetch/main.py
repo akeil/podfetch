@@ -71,14 +71,17 @@ def main(argv=None):
         log_level=args.log_level,
     )
     cfg = read_config(extra_config_paths=[args.config,])
-
+    log.debug('Parsed args: {}'.format(args))
     try:
         rv = run(args, cfg)
     except KeyboardInterrupt:
         log.info('Keyboard Interrupt.')
         raise
     except Exception as e:
-        log.error(e)
+        if args.verbose:
+            log.exception(e)
+        else:
+            log.error(e)
         rv = EXIT_ERROR
     finally:
         # TODO perform cleanup
@@ -270,7 +273,7 @@ def setup_command_parsers(parent_parser):
     )
 
     def do_update(app, args):
-        rv = app.update(force=args.force, *args.subscription_names)
+        rv = app.update(args.subscription_names, force=args.force)
         return rv
     fetch.set_defaults(func=do_update)
 

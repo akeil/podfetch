@@ -158,7 +158,7 @@ class Podfetch(object):
                     except Exception as e:  # TODO exception type
                         log.error(e)
 
-    def update(self, force=False, *subscription_names):
+    def update(self, subscription_names, force=False):
         '''Fetch new episodes for the given ``subscription_names``.
 
         Subscriptions are updated in parallel if more than one subscription
