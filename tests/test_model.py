@@ -159,6 +159,39 @@ def test_load_nonexisting_raises_error():
         )
 
 
+def test_load_invalid_raises_error(tmpdir):
+    '''Loading a subscription from a file that is not in ini-format.'''
+    invalid_file = tmpdir.join('invalid_file')
+    invalid_file.write('something')
+    with pytest.raises(NoSubscriptionError):
+        Subscription.from_file(
+            str(invalid_file),
+            'index_dir', 'content_dir', 'cache_dir'
+        )
+
+
+def test_load_empty_raises_error(tmpdir):
+    '''Loading a subscription from an empty file.'''
+    empty_file = tmpdir.join('invalid_file')
+    empty_file.write('')
+    with pytest.raises(NoSubscriptionError):
+        Subscription.from_file(
+            str(empty_file),
+            'index_dir', 'content_dir', 'cache_dir'
+        )
+
+
+def test_load_missing_url(tmpdir):
+    '''Loading a subscription from ini file with required fields missing.'''
+    invalid_file = tmpdir.join('invalid_file')
+    invalid_file.write('[subscription]\nfield = value')
+    with pytest.raises(NoSubscriptionError):
+        Subscription.from_file(
+            str(invalid_file),
+            'index_dir', 'content_dir', 'cache_dir'
+        )
+
+
 def test_save(tmpdir, sub):
     sub.max_episodes = 123
     sub.filename_template = 'template'

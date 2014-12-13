@@ -191,7 +191,15 @@ class Subscription(object):
             NoSubscriptionError if no config file exists.
         '''
         cfg = configparser.ConfigParser()
-        read_from = cfg.read(path)
+        # possible errors:
+        # file does not exist
+        # file is no in ini format
+        # missing sections and options
+        try:
+            read_from = cfg.read(path)
+        except configparser.Error:
+            raise NoSubscriptionError(
+                'Failed to read subscription from {!r}.'.format(path))
         if not read_from:
             raise NoSubscriptionError(
                 'No config file exists at {!r}.'.format(path))
@@ -199,9 +207,15 @@ class Subscription(object):
         log.debug('Read subscription from {!r}.'.format(path))
         sec = 'subscription'
 
-        # mandatory properties
-        config_dir, name = os.path.split(path)
-        feed_url = cfg.get(sec, 'url')
+        # mandatory property 'url'
+        try:
+            feed_url = cfg.get(sec, 'url')
+        except configparser.NoSectionError:
+            raise NoSubscriptionError(('Missing section {!r} in file {!r}.'
+                ' Not a subscription-file?'.format(sec, path)))
+        except configparser.NoOptionError:
+            raise NoSubscriptionError(
+                'Missing required field {!r} in {!r}.'.format('url', path))
 
         # optional properties
         try:
@@ -224,6 +238,7 @@ class Subscription(object):
         except configparser.NoOptionError:
             title = None
 
+        config_dir, name = os.path.split(path)
         return cls(
             name, feed_url,
             config_dir, index_dir, app_content_dir, cache_dir,
