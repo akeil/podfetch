@@ -46,6 +46,4 @@ output/*/index.html
 docs/_build
 
 # packaging and shipping
-package/archlinux/*.tar.gz
-package/archlinux/akeil-python-podfetch
-package/pack.sh
+package/*
