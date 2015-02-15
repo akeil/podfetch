@@ -221,6 +221,7 @@ class Subscription(object):
         except configparser.NoOptionError:
             raise NoSubscriptionError(
                 'Missing required field {!r} in {!r}.'.format('url', path))
+        # TODO: make sure that url is valid
 
         # optional properties
         try:
@@ -642,10 +643,10 @@ def _fetch_feed(url, etag=None, modified=None):
 
     if feed.status == 410:  # HTTP Gone
         raise FeedGoneError(
-            'Request for URL {!r} returned HTTP 410.'.format(feed_url))
+            'Request for URL {!r} returned HTTP 410.'.format(url))
     elif feed.status == 404:  # HTTP Not Found
         raise FeedNotFoundError(
-            'Request for URL {!r} returned HTTP 404.'.format(feed_url))
+            'Request for URL {!r} returned HTTP 404.'.format(url))
     # TODO AuthenticationFailure
     # TODO Connection error, Timeouts
     return feed
