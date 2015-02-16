@@ -161,6 +161,9 @@ class Podfetch(object):
         '''
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
             for name in filenames:
+                if name.startswith('.'):
+                    log.debug('ignore subscription file {!r}'.format(name))
+                    continue
                 if name in filter or not filter:
                     try:
                         yield self._load_subscription(name)
