@@ -78,10 +78,8 @@ def main(argv=None):
         log.info('Keyboard Interrupt.')
         raise
     except Exception as e:
-        if args.verbose:
-            log.exception(e)
-        else:
-            log.error(e)
+        log.error(e)
+        log.debug(e, exc_info=True)
         rv = EXIT_ERROR
     finally:
         # TODO perform cleanup
