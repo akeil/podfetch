@@ -54,14 +54,20 @@ def _write_subscription_config(path, url=None, max_episodes=-1):
 
 
 def test_iter_subscriptions(app):
-    for index in range(3):
+    num_subscriptions = 3
+    for index in range(num_subscriptions):
         filename = os.path.join(app.subscriptions_dir, 'feed-{}'.format(index))
         _write_subscription_config(filename)
 
-    subs = [x for x in app.iter_subscriptions()]
-    assert len(subs) == 3
-    assert 'feed-1' in [s.name for s in subs]
+    # filename starts with a "." ("hidden" file) and must be ignored
+    hidden = os.path.join(app.subscriptions_dir, '.hidden')
+    _write_subscription_config(filename)
 
+    subs = [x for x in app.iter_subscriptions()]
+    names = [s.name for s in subs]
+    assert len(subs) == num_subscriptions
+    assert 'feed-1' in names
+    assert '.hidden' not in names
 
 def test_unique_name(app):
     '''Make sure the application finds unique names for new subscriptions.'''
