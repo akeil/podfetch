@@ -14,6 +14,5 @@ sha256sums=('%%sha256sum%%')
 
 package() {
     cd "$srcdir/${_pkgname}-${pkgver}"
-    echo "${pkgdir}"
     python setup.py --quiet install --root="${pkgdir}" --optimize=1
 }
