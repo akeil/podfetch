@@ -109,13 +109,17 @@ class Subscription(object):
     :var int max_episodes:
         The maximum number of episodes to keep downloaded.
         Read from the config file.
+    :var bool enabled:
+        Whether this Subscription is *enabled*. Subscriptions which are
+        disabled are not updated.
+        Defaults to *True*.
     :var str filename_template:
         Template string used to generate the filenames for downloaded episodes.
     '''
 
     def __init__(self, name, feed_url,
         config_dir, index_dir, default_content_dir, cache_dir,
-        title=None, max_episodes=-1, content_dir=None,
+        title=None, max_episodes=-1, content_dir=None, enabled=True,
         filename_template=None, app_filename_template=None):
 
         self.name = name
@@ -127,6 +131,7 @@ class Subscription(object):
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
         self.config_dir = config_dir
+        self.enabled = enabled
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
 
@@ -169,6 +174,7 @@ class Subscription(object):
 
         _set('url', self.feed_url)
         _set('max_episodes', str(self.max_episodes))
+        _set('enabled', str(self.enabled))
 
         if self.title:
             _set('title', self.title)
@@ -244,12 +250,18 @@ class Subscription(object):
         except configparser.NoOptionError:
             title = None
 
+        try:
+            enabled = cfg.getboolean(sec, 'enabled')
+        except configparser.NoOptionError:
+            enabled = True
+
         config_dir, name = os.path.split(path)
         return cls(
             name, feed_url,
             config_dir, index_dir, app_content_dir, cache_dir,
             title=title,
             max_episodes=max_episodes,
+            enabled=enabled,
             content_dir=content_dir,
             filename_template=filename_template
         )

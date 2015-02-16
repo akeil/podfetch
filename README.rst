@@ -56,6 +56,9 @@ The files look like this (``url`` is the only mandatory setting):
     # override application config for this subscription
     content_dir = /path/to/episodes
 
+    # set this to False to stop fetching updates for this subscription
+    enabled = True
+
 
 Interesting Directories
 =======================

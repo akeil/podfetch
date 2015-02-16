@@ -135,6 +135,7 @@ def test_load_subscription_from_file(tmpdir):
         'filename_template = template',
         'title = the_title',
         'content_dir = subscription_content_dir',
+        'enabled = False',
     ]))
 
     sub = Subscription.from_file(
@@ -147,6 +148,7 @@ def test_load_subscription_from_file(tmpdir):
     assert sub.max_episodes == 30
     assert sub.filename_template == 'template'
     assert sub.content_dir == 'subscription_content_dir'
+    assert sub.enabled == False
 
 
 def test_load_nonexisting_raises_error():
@@ -202,11 +204,13 @@ def test_save(tmpdir, sub):
     with open(filename) as f:
         lines = f.readlines()
 
-    assert 'http://example.com' in ''.join(lines)
-    assert '123' in ''.join(lines)
-    assert 'template' in ''.join(lines)
-    assert 'subscription-title' in ''.join(lines)
-    assert 'my-content-dir' in ''.join(lines)
+    text = ''.join(lines)
+    assert 'http://example.com' in text
+    assert '123' in text
+    assert 'template' in text
+    assert 'subscription-title' in text
+    assert 'my-content-dir' in text
+    assert 'True' in text  # from enabled=True
 
 
 def test_save_and_load_index(sub):

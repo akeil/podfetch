@@ -173,6 +173,9 @@ class Podfetch(object):
     def update(self, subscription_names, force=False):
         '''Fetch new episodes for the given ``subscription_names``.
 
+        Subscriptions which have the *enabled* property set to *False*
+        are not updated.
+
         Subscriptions are updated in parallel if more than one subscription
         name is supplied and if the number of worker threads is 2 or higher.
 
@@ -188,8 +191,12 @@ class Podfetch(object):
         tasks = queue.Queue()
         num_tasks = 0
         for subscription in self.iter_subscriptions(*subscription_names):
-            tasks.put(subscription)
-            num_tasks += 1
+            if not subscription.enabled:
+                log.warning(('Subscription {!r} is disabled'
+                ' and will not be updated.').format(subscription.name))
+            else:
+                tasks.put(subscription)
+                num_tasks += 1
 
         def work():
             done = False
