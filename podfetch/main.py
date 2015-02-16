@@ -86,7 +86,7 @@ def main(argv=None):
         pass
 
     log.debug('Exit with return code: {}.'.format(rv))
-    return rv
+    return rv or OK  # converts None|False -> 0
 
 
 def run(args, cfg):
