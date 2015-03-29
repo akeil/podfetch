@@ -69,6 +69,12 @@ def test_iter_subscriptions(app):
     assert 'feed-1' in names
     assert '.hidden' not in names
 
+    # wildcards
+    names = [s.name for s in app.iter_subscriptions('*-1')]
+    assert len(names) == 1
+    assert names[0] == 'feed-1'
+
+
 def test_unique_name(app):
     '''Make sure the application finds unique names for new subscriptions.'''
     path = os.path.join(app.subscriptions_dir, 'existing')

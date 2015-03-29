@@ -86,7 +86,7 @@ def main(argv=None):
         pass
 
     log.debug('Exit with return code: {}.'.format(rv))
-    return rv or OK  # converts None|False -> 0
+    return rv or EXIT_OK  # converts None|False -> 0
 
 
 def run(args, cfg):
@@ -294,7 +294,8 @@ def setup_command_parsers(parent_parser):
         nargs='*',
         help=('Names of subscriptions from which episodes are listed. If'
             ' NAME(S) are given, episodes from these podcasts are shown.'
-            ' shown. If no name is given list episodes from all podcasts.'),
+            ' Allows wildcards.'
+            ' If no name is given list episodes from all podcasts.'),
     )
 
     ls.add_argument(
@@ -333,7 +334,7 @@ def setup_command_parsers(parent_parser):
             for subscription in app.iter_subscriptions():
                 episodes += subscription.episodes
         else:
-            # names specified - list episodes from selected subscriptions 
+            # names specified - list episodes from selected subscriptions
             for name in args.subscription_name:
                 try:
                     sub = app.subscription_for_name(name)
