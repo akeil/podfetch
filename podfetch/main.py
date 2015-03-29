@@ -338,7 +338,7 @@ def setup_command_parsers(parent_parser):
         # sort all selected episodes by date, then reduce to N items
         episodes.sort(key=lambda e: e.pubdate, reverse=True)
         if not args.all:
-            limit = args.newest or 10  # arbritrary default
+            limit = args.newest or 15  # arbritrary default
             if limit < 0:
                 raise ValueError(('Invalid limit {} for ls.'
                     ' Expected a positive integer').format(limit))
