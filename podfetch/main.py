@@ -263,7 +263,7 @@ def setup_command_parsers(parent_parser):
     )
 
     fetch.add_argument(
-        'subscription_names',
+        'patterns',
         nargs='*',
         metavar='NAME',
         help=('The names of the subscriptions to be updated.'
@@ -278,7 +278,7 @@ def setup_command_parsers(parent_parser):
     )
 
     def do_update(app, args):
-        rv = app.update(args.subscription_names, force=args.force)
+        rv = app.update(args.patterns, force=args.force)
         return rv
     fetch.set_defaults(func=do_update)
 
@@ -289,7 +289,7 @@ def setup_command_parsers(parent_parser):
     )
 
     ls.add_argument(
-        'subscription_name',
+        'patterns',
         metavar='NAME',
         nargs='*',
         help=('Names of subscriptions from which episodes are listed. If'
@@ -327,20 +327,7 @@ def setup_command_parsers(parent_parser):
             out.write('{}\n'.format(header))
             out.write('{}\n'.format('-' * len(header)))
 
-        episodes = []
-
-        if not args.subscription_name:
-            # no name is specified - list episodes from all subscriptions
-            for subscription in app.iter_subscriptions():
-                episodes += subscription.episodes
-        else:
-            # names specified - list episodes from selected subscriptions
-            for name in args.subscription_name:
-                try:
-                    sub = app.subscription_for_name(name)
-                    episodes += sub.episodes
-                except NoSubscriptionError:
-                    log.warning('No subscription named {!r}.\n'.format(name))
+        episodes = [s.episodes for s in app.iter_subscriptions(*patterns)]
 
         # sort all selected episodes by date, then reduce to N items
         episodes.sort(key=lambda e: e.pubdate, reverse=True)
