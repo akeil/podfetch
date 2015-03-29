@@ -5,6 +5,7 @@ The command line interface for Podfetch.
 '''
 import sys
 import os
+import itertools
 import logging
 from logging import handlers
 from textwrap import wrap
@@ -333,8 +334,9 @@ def setup_command_parsers(parent_parser):
             out.write('{}\n'.format(header))
             out.write('{}\n'.format('-' * len(header)))
 
-        episodes = [s.episodes for s in app.iter_subscriptions(*patterns)]
-
+        episodes = [e for e in itertools.chain(*[
+            s.episodes for s in app.iter_subscriptions(*args.patterns)
+        ])]
         # sort all selected episodes by date, then reduce to N items
         episodes.sort(key=lambda e: e.pubdate, reverse=True)
         if not args.all:

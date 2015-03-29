@@ -165,7 +165,7 @@ class Podfetch(object):
         '''
         predicate = WildcardFilter(*patterns) if patterns else Filter()
         if self.ignore:
-            predicate = predicate.and_not(WildcardFilter(self.ignore))
+            predicate = predicate.and_not(WildcardFilter(*self.ignore))
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
             for name in filenames:
                 if predicate(name):
