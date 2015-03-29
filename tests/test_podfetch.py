@@ -11,6 +11,7 @@ import pytest
 import os
 
 from podfetch import application
+from podfetch.application import WildcardFilter
 from podfetch.exceptions import NoSubscriptionError
 
 
@@ -59,15 +60,26 @@ def test_iter_subscriptions(app):
         filename = os.path.join(app.subscriptions_dir, 'feed-{}'.format(index))
         _write_subscription_config(filename)
 
-    # filename starts with a "." ("hidden" file) and must be ignored
+    # filename starts with a "." ("hidden" file)
     hidden = os.path.join(app.subscriptions_dir, '.hidden')
-    _write_subscription_config(filename)
+    _write_subscription_config(hidden)
 
-    subs = [x for x in app.iter_subscriptions()]
-    names = [s.name for s in subs]
-    assert len(subs) == num_subscriptions
+    bak = os.path.join(app.subscriptions_dir, 'something.bak')
+    _write_subscription_config(bak)
+
+
+    # default: list the hidden file
+    names = [s.name for s in app.iter_subscriptions()]
+    assert len(names) == num_subscriptions + 2
     assert 'feed-1' in names
+    assert '.hidden' in names
+    assert 'something.bak' in names
+
+    # ignore option:
+    app.ignore = '.* *.bak'
+    names = [s.name for s in app.iter_subscriptions('*-1')]
     assert '.hidden' not in names
+    assert 'something.bak' not in names
 
     # wildcards
     names = [s.name for s in app.iter_subscriptions('*-1')]

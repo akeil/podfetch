@@ -105,13 +105,14 @@ class Podfetch(object):
     '''
 
     def __init__(self, config_dir, index_dir, content_dir, cache_dir,
-        filename_template=None, update_threads=1):
+        filename_template=None, update_threads=1, ignore=None):
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
         self.index_dir = index_dir
         self.content_dir = content_dir
         self.cache_dir = cache_dir
         self.filename_template = filename_template
         self.update_threads = max(1, update_threads)
+        self.ignore = ignore
         self.hooks = HookManager(config_dir)
 
         log.debug('config_dir: {!r}.'.format(self.subscriptions_dir))
@@ -120,6 +121,7 @@ class Podfetch(object):
         log.debug('cache_dir: {!r}.'.format(self.cache_dir))
         log.debug('filename_template: {!r}.'.format(self.filename_template))
         log.debug('update_threads: {}'.format(self.update_threads))
+        log.debug('ignore: {!r}'.format(self.ignore))
 
     def _load_subscription(self, name):
         '''Load a :class:`Subscription` instance from its configuration file.
@@ -162,11 +164,10 @@ class Podfetch(object):
             Wildcards like "*foo" or "b?r" are allowed.
         '''
         predicate = WildcardFilter(*patterns) if patterns else Filter()
+        if self.ignore:
+            predicate = predicate.and_not(WildcardFilter(self.ignore))
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
             for name in filenames:
-                if name.startswith('.'):
-                    log.info('ignore subscription file {!r}'.format(name))
-                    continue
                 if predicate(name):
                     try:
                         yield self._load_subscription(name)

@@ -156,10 +156,16 @@ def _create_app(cfg):
     except (configparser.NoOptionError, configparser.NoSectionError):
         pass
 
+    try:
+        ignore = cfg.get(CFG_DEFAULT_SECTION, 'ignore').split()
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        ignore = None
+
     return application.Podfetch(
         config_dir, index_dir, content_dir, cache_dir,
         filename_template=filename_template,
         update_threads=update_threads,
+        ignore=ignore
     )
 
 
