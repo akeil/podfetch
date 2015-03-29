@@ -1,4 +1,4 @@
-personal_ws-1.1 en 15
+personal_ws-1.1 en 18
 podfetch
 ascii
 url
@@ -15,3 +15,5 @@ logfile
 virtualenv
 virtualenvwrapper
 mkvirtualenv
+whitespace
+wildcards

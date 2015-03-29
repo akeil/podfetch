@@ -2,44 +2,73 @@
 Usage
 #####
 
+
 Command line
 #############
 
-Update all podcasts::
+Update all podcasts:
+
+.. code:: shell-session
 
     $ podfetch update
 
-Update a selected podcast::
+Update a selected podcast:
+
+.. code:: shell-session
 
     $ podfetch update podcast_name
 
-or more than one::
+or more than one:
+
+.. code:: shell-session
 
     $ podfetch update podcast_name another_podcast
 
+...using wildcards:
+
+.. code:: shell-session
+
+    $ podfetch update foo*
+
 When used as a **cron job**::
 
-    podfetch --quiet --logfile=syslog update
+    podfetch --quiet update
+
 
 Managing Subscriptions
 ======================
 
-To add a new podcast::
+To add a new podcast:
+
+.. code:: shell-session
 
     $ podfetch add http://example.com/rss
 
 Will create a podcast named "example" (from example.com).
-To specify the name explicitly::
+To specify the name explicitly:
+
+.. code:: shell-session
 
     $ podfetch add http://example.com/rss --name my_name
 
-To remove a subscription::
+To remove a subscription:
+
+.. code:: shell-session
 
     $podfetch remove podcast_name
 
-To see a list of all subscriptions::
+To see a list of all subscriptions:
+
+.. code:: shell-session
 
     $ podfetch ls
+
+... and selected subscriptions:
+
+.. code:: shell-session
+
+    $ podfetch ls foo ba*
+
 
 Hooks
 =====

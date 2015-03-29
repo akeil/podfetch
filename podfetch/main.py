@@ -32,7 +32,7 @@ SYSLOG_FMT = '%(levelname)s [%(name)s]: %(message)s'
 LOGFILE_FMT = '%(asctime)s %(levelname)s [%(name)s]: %(message)s'
 DEFAULT_LOG_LEVEL = 'warning'
 
-CFG_DEFAULT_SECTION = 'default'
+CFG_DEFAULT_SECTION = 'podfetch'
 SYSTEM_CONFIG_PATH = '/etc/podfetch.conf'
 DEFAULT_USER_CONFIG_PATH = os.path.expanduser(
     '~/.config/podfetch/podfetch.conf')

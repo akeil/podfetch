@@ -12,6 +12,29 @@ Features
 - Hooks to execute additional commands after downloading new episodes.
 
 
+Usage
+#####
+To add a subscription:
+
+.. code:: shell-session
+
+    $ podfetch add http://example.com/rss
+
+To update subscriptions:
+
+.. code:: shell-session
+
+    $ podfetch update
+
+To list recently downloaded episodes:
+
+.. code:: shell-session
+
+    $ podfetch ls
+
+Use ``podfetch --help`` for more.
+
+
 Configuration
 #############
 The central configuration files are
@@ -22,7 +45,7 @@ Configuration options are:
 
 .. code:: ini
 
-    [default]
+    [podfetch]
     # where to store downloaded episodes
     content_dir = ~/Documents/Podcasts
 
@@ -31,6 +54,9 @@ Configuration options are:
 
     # number of threads for parallel downloads
     update_threads = 8
+
+    # ignore these files in the subscriptions directory
+    ignore = .*
 
 
 Subscriptions
