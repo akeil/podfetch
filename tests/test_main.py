@@ -77,7 +77,7 @@ def test_update_one(monkeypatch, mock_app):
     main.main(argv=argv)
     mock_app.update.assert_called_once_with(
         ['subscription-name'],
-        force=False, 
+        force=False,
     )
 
 
@@ -103,7 +103,7 @@ def test_add(monkeypatch, mock_app):
     argv = [
         'add', url,
         '--name', name,
-        '--directory', content_dir, 
+        '--directory', content_dir,
         '--max-episodes', str(max_epis)
     ]
     main.main(argv=argv)
@@ -220,6 +220,50 @@ def test_read_cfg(tmpdir, monkeypatch):
     assert cfg.get('default', 'cache_dir') == default_cache_dir
     assert cfg.get('default', 'filename_template') == system_wide_template
 
+
+# helpers ---------------------------------------------------------------------
+
+from datetime import date, timedelta
+def test_parse_datearg():
+    t = date.today()
+    cases = (
+        ('t', t),
+        ('today', t),
+
+        ('y', t - timedelta(days=1)),
+        ('yy', t - timedelta(days=2)),
+        ('yester', t - timedelta(days=1)),
+        ('yesterday', t - timedelta(days=1)),
+
+        ('d', t - timedelta(days=1)),
+        ('day', t - timedelta(days=1)),
+        ('days', t - timedelta(days=1)),
+
+        ('2d', t - timedelta(days=2)),
+        ('2day', t - timedelta(days=2)),
+        ('2days', t - timedelta(days=2)),
+
+        ('3 days', t - timedelta(days=3)),  # with space
+        ('10 days', t - timedelta(days=10)),  # 2-digits
+        ('100 days', t - timedelta(days=100)),  # more than one month
+
+        ('w', t - timedelta(weeks=1)),
+        ('week', t - timedelta(weeks=1)),
+        ('weeks', t - timedelta(weeks=1)),
+
+        ('2w', t - timedelta(weeks=2)),
+        ('2week', t - timedelta(weeks=2)),
+        ('2weeks', t - timedelta(weeks=2)),
+
+        ('3 weeks', t - timedelta(weeks=3)),  # with space
+        ('10 weeks', t - timedelta(weeks=10)),  # 2-digits
+
+        ('2015-05-13', date(2015, 5, 13)),
+        ('20150513', date(2015, 5, 13)),
+
+    )
+    for argstr, expected in cases:
+        assert main.datearg(argstr) == expected
 
 if __name__ == '__main__':
     import sys

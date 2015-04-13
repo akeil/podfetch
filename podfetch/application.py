@@ -34,6 +34,7 @@ import subprocess
 import shlex
 import fnmatch
 import threading
+from datetime import date
 
 try:
     from shlex import quote as shlex_quote  # python 3.x
@@ -153,19 +154,19 @@ class Podfetch(object):
         '''
         return self._load_subscription(name)
 
-    def iter_subscriptions(self, *patterns):
+    def iter_subscriptions(self, predicate=None):
         '''Iterate over all configured subscriptions.
         *yields* a :class:`Subscription` instance for each configuration file
         in the ``subscriptions_dir``.
 
-        :param list patterns:
-            *optional* list of names.
-            If given, yields only subscriptions with matching name.
-            Wildcards like "*foo" or "b?r" are allowed.
+        :param Filter predicate:
+            *optional* a :class:`Filter` instance.
+            If given, yields only subscriptions with match the filter.
         '''
-        predicate = WildcardFilter(*patterns) if patterns else Filter()
+        predicate = predicate or Filter()
         if self.ignore:
             predicate = predicate.and_not(WildcardFilter(*self.ignore))
+        log.debug('predicate: {p!r}'.format(p=predicate))
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
             for name in filenames:
                 if predicate(name):
@@ -174,7 +175,7 @@ class Podfetch(object):
                     except Exception as e:  # TODO exception type
                         log.error(e)
 
-    def update(self, subscription_names, force=False):
+    def update(self, predicate=None, force=False):
         '''Fetch new episodes for the given ``subscription_names``.
 
         Subscriptions which have the *enabled* property set to *False*
@@ -188,13 +189,13 @@ class Podfetch(object):
             force update, ignore HTTP etag and not modified in feed.
             Re-download all episodes.
             Default is *True*.
-        :param list subscription_names:
-            The names of subscriptions to be updated.
-            Leave empty to update *all* subscriptions.
+        :param Filter predicate:
+            *optional* a :class:`Filter` instance.
+            If given, yields only subscriptions with match the filter.
         '''
         tasks = queue.Queue()
         num_tasks = 0
-        for subscription in self.iter_subscriptions(*subscription_names):
+        for subscription in self.iter_subscriptions(predicate=predicate):
             if not subscription.enabled:
                 log.warning(('Subscription {!r} is disabled'
                 ' and will not be updated.').format(subscription.name))
@@ -377,6 +378,9 @@ class Filter(object):
         '''Chain with an inverted other filter using AND.'''
         return self.and_is(other.is_not())
 
+    def __repr__(self):
+        return '<Filter *>'
+
 
 class _Not(Filter):
     '''Invert filter'''
@@ -386,6 +390,9 @@ class _Not(Filter):
 
     def __call__(self, candidate):
         return not(self.filter(candidate))
+
+    def __repr__(self):
+        return '<Not {s.filter!r}>'.format(s=self)
 
 
 class _Chain(Filter):
@@ -411,18 +418,54 @@ class _Chain(Filter):
 
         return result
 
+    def __repr__(self):
+        return '<Chain {s.mode!r} {s.filters!r}>'.format(s=self)
+
 
 class WildcardFilter(Filter):
     '''Filter with shell wildcards using ``fnmatch``.'''
 
     def __init__(self, *patterns):
-        self.patterns = patterns[:] if patterns else []
+        self.patterns = patterns[:] if patterns else ['*']
 
     def __call__(self, candidate):
         for pattern in self.patterns:
             if fnmatch.fnmatch(candidate, pattern):
                 return True
         return False
+
+    def __repr__(self):
+        return '<Wildcard {s.patterns!r}>'.format(s=self)
+
+
+class PubdateAfter(Filter):
+
+    def __init__(self, since):
+        self.since = since
+
+    def __call__(self, candidate):
+        if candidate.pubdate:
+            return date(*candidate.pubdate[:3]) >= self.since
+        else:
+            return False
+
+    def __repr__(self):
+        return '<PubdateAfter {s.since!r}>'.format(s=self)
+
+
+class PubdateBefore(Filter):
+
+    def __init__(self, until):
+        self.until = until
+
+    def __call__(self, candidate):
+        if candidate.pubdate:
+            return date(*candidate.pubdate[:3]) <= self.until
+        else:
+            return False
+
+    def __repr__(self):
+        return '<PubdateBefore {s.until!r}>'.format(s=self)
 
 
 # Hooks ----------------------------------------------------------------------

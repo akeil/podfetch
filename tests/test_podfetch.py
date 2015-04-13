@@ -77,12 +77,13 @@ def test_iter_subscriptions(app):
 
     # ignore option:
     app.ignore = ['.* *.bak']
-    names = [s.name for s in app.iter_subscriptions('*-1')]
+    predicate = WildcardFilter('*-1')
+    names = [s.name for s in app.iter_subscriptions(predicate=predicate)]
     assert '.hidden' not in names
     assert 'something.bak' not in names
 
     # wildcards
-    names = [s.name for s in app.iter_subscriptions('*-1')]
+    names = [s.name for s in app.iter_subscriptions(predicate=predicate)]
     assert len(names) == 1
     assert names[0] == 'feed-1'
 

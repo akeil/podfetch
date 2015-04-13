@@ -6,10 +6,12 @@ Tests for filters
 '''
 import pytest
 import os
+from datetime import date
 
 from podfetch.application import Filter
 from podfetch.application import WildcardFilter
-
+from podfetch.application import PubdateAfter
+from podfetch.application import PubdateBefore
 
 def test_basic():
     predicate = Filter()
@@ -29,6 +31,26 @@ def test_wildcards():
     assert predicate('baz')  # ba[rz]
     assert not predicate('bax')
     assert not predicate('anything-else')
+
+
+class _Dummy:
+
+    def __init__(self, y, m, d):
+        self.pubdate = [y, m, d]
+
+
+def test_pubdate_after():
+    predicate = PubdateAfter(date(2015, 4, 1))
+    assert not predicate(_Dummy(2015, 3, 31))  # before
+    assert predicate(_Dummy(2015, 4, 1))  # on
+    assert predicate(_Dummy(2015, 4, 2))  # after
+
+
+def test_pubdate_before():
+    predicate = PubdateBefore(date(2015, 4, 1))
+    assert predicate(_Dummy(2015, 3, 31))  # before
+    assert predicate(_Dummy(2015, 4, 1))  # on
+    assert not predicate(_Dummy(2015, 4, 2))  # after
 
 
 def test_chain_or():

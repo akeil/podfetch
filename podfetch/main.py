@@ -10,6 +10,9 @@ import logging
 from logging import handlers
 from textwrap import wrap
 import argparse
+from datetime import date
+from datetime import timedelta
+import re
 try:
     import configparser  # python 3
 except ImportError:
@@ -17,6 +20,10 @@ except ImportError:
 
 import podfetch
 from podfetch import application
+from podfetch.application import Filter
+from podfetch.application import WildcardFilter
+from podfetch.application import PubdateAfter
+from podfetch.application import PubdateBefore
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import UserError
 
@@ -52,7 +59,8 @@ def main(argv=None):
     Sets up the argument parser,
     reads configuration,
     configures logging
-    and runs the program by invoking :function:`run()`, passing the parsed arguments
+    and runs the program by invoking :function:`run()`,
+    passing the parsed arguments
     and configuration.
 
     :param list argv:
@@ -250,6 +258,46 @@ def setup_argparser():
     return parser
 
 
+DATE_PATTERNS = (
+    (
+        '^(y|yester|yesterday)$',
+        lambda g: date.today() - timedelta(days=1)
+    ),
+    (
+        '^yy$',
+        lambda g: date.today() - timedelta(days=2)
+    ),
+    (
+        '^(t|today)$',
+        lambda g: date.today()
+    ),
+    (
+        '^([0-9]+)?\s?(d|day|days)$',
+        lambda g: date.today() - timedelta(days=int(g.group(1) or 1))
+    ),
+    (
+        '^([0-9]+)?\s?(w|week|weeks)$',
+        lambda g: date.today() - timedelta(weeks=int(g.group(1) or 1))
+    ),
+    (
+        '^([0-9]{4})-?([0-9]{2})-?([0-9]{2})$',
+        lambda g: date(int(g.group(1)), int(g.group(2)), int(g.group(3)))
+    )
+)
+
+
+def datearg(s):
+    refdate = None
+    for pattern, factory in DATE_PATTERNS:
+        m = re.match(pattern, s)
+        if m:
+            refdate = factory(m)  # may raise ValueError
+    if refdate is None:
+        raise argparse.ArgumentTypeError
+    else:
+        return refdate
+
+
 def setup_command_parsers(parent_parser):
     '''Set up the sub-parsers for the "action-commands":
       - update
@@ -306,6 +354,20 @@ def setup_command_parsers(parent_parser):
     )
 
     ls.add_argument(
+        '--since', '-s',
+        metavar='DATE',
+        type=datearg,
+        help='Show only episodes downloaded SINCE the given date.'
+    )
+
+    ls.add_argument(
+        '--until', '-u',
+        metavar='DATE',
+        type=datearg,
+        help='Show only episodes downloaded UNTIL the given date.'
+    )
+
+    ls.add_argument(
         '--path', '-p',
         action='store_true',
         help='Print paths instead of titles.',
@@ -334,9 +396,23 @@ def setup_command_parsers(parent_parser):
             out.write('{}\n'.format(header))
             out.write('{}\n'.format('-' * len(header)))
 
-        episodes = [e for e in itertools.chain(*[
-            s.episodes for s in app.iter_subscriptions(*args.patterns)
-        ])]
+        # filter subscriptions
+        predicate = WildcardFilter(*args.patterns)
+
+        # filter episodes
+        accept = Filter()
+        if args.since:
+            accept = accept.and_is(PubdateAfter(args.since))
+        if args.until:
+            accept = accept.and_is(PubdateBefore(args.until))
+        log.debug('episode filter: {a!r}'.format(a=accept))
+        episodes = [
+            e for e in itertools.chain(*[
+                s.episodes for s in app.iter_subscriptions(predicate=predicate)
+            ])
+            if accept(e)
+        ]
+
         # sort all selected episodes by date, then reduce to N items
         episodes.sort(key=lambda e: e.pubdate, reverse=True)
         if not args.all:
