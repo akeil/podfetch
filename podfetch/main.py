@@ -333,8 +333,11 @@ def setup_command_parsers(parent_parser):
     )
 
     def do_update(app, args):
-        rv = app.update(args.patterns, force=args.force)
-        return rv
+        return app.update(
+            predicate=WildcardFilter(*args.patterns),
+            force=args.force
+        )
+
     fetch.set_defaults(func=do_update)
 
     # list --------------------------------------------------------------------
