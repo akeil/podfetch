@@ -18,7 +18,7 @@ Instances of the ``Subscription`` class are normally created by the
         uses Subscription.from_file()
         which internally uses Subscription.__init__()
         passing values from the config file.
-    
+
 '''
 import os
 import stat
@@ -59,6 +59,7 @@ ContentTypeInfo = namedtuple('ContentTypeInfo', 'file_ext')
 
 SUPPORTED_CONTENT = {
     'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
+    'audio/mp4': ContentTypeInfo(file_ext='m4a'),
     'audio/ogg': ContentTypeInfo(file_ext='ogg'),
     'audio/flac': ContentTypeInfo(file_ext='flac'),
     'video/mpeg': ContentTypeInfo(file_ext='mp4')
