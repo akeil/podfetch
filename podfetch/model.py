@@ -159,8 +159,8 @@ class Subscription(object):
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
 
-        self.index_file = os.path.join(
-            self.index_dir, '{}.json'.format(self.name))
+        #self.index_file = os.path.join(
+        #    self.index_dir, '{}.json'.format(self.name))
         self.episodes = []
         self._load_index()
 
@@ -182,6 +182,10 @@ class Subscription(object):
     def content_dir(self, dirname):
         # convert '' to None, but NOT None to 'None'
         self._content_dir = None if not str(dirname) else dirname
+
+    @property
+    def index_file(self):
+        return os.path.join(self.index_dir, '{}.json'.format(self.name))
 
     def save(self):
         '''Save this subscription to an ini-file in the given
@@ -446,6 +450,46 @@ class Subscription(object):
 
         return deleted_files
 
+    def rename(self, newname):
+        log.info('Rename subscription {o!r} -> {n!r}.'.format(
+            o=self.name, n=newname))
+
+        log.info('Forget cache entries.')
+        cached = {}
+        for key in CACHE_ALL:
+            cached[key] = self._cache_get(key)
+        self._cache_forget(*CACHE_ALL)
+
+        old_index_file = self.index_file
+        old_content_dir = self.content_dir
+
+        self.name = newname
+        self.save()  # TODO: let caller `save()` ?
+        self.rename_files()
+
+        # index was loaded - save it to the new name
+        log.info('Save index under new name {f!r}.'.format(f=self.index_file))
+        self._save_index()
+        if self.index_file != old_index_file:
+            log.info('Delete old index file {f!r}.'.format(f=old_index_file))
+            os.unlink(old_index_file)
+
+        log.info('Save cache under new name.')
+        for key, value in cached.items():
+            self._cache_put(key, value)
+
+        try:
+            os.rmdir(old_content_dir)
+        except OSError as e:
+            if e.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
+                raise
+
+    def rename_files(self):
+        '''Rename file to match a new filename pattern or content dir.'''
+        for episode in self.episodes:
+            episode.move_local_files()
+        self._save_index()
+
     # cache ------------------------------------------------------------------
 
     def _cache_get(self, key):
@@ -688,6 +732,20 @@ class Episode(object):
         while self.files:
             __, __, local_file = self.files.pop()
             delete_if_exists(local_file)
+
+    def move_local_files(self):
+        files = self.files[:]
+        for index, details in enumerate(files):
+            url, content_type, oldpath = details
+            newpath = os.path.join(
+                self.subscription.content_dir,
+                self._generate_filename(content_type, index)
+            )
+            if newpath != oldpath:
+                require_directory(self.subscription.content_dir)
+                shutil.move(oldpath, newpath)
+                self.files[index] = (url, content_type, newpath)
+
 
     def __repr__(self):
         return '<Episode id={s.id!r}>'.format(s=self)

@@ -314,6 +314,7 @@ def setup_command_parsers(parent_parser):
     _update(subs)
     _list(subs)
     _add(subs)
+    _edit(subs)
     _show(subs)
     _del(subs)
     _purge(subs)
@@ -636,6 +637,73 @@ def _purge(subs):
             log.warning('Simulation - no files were deleted.')
 
     purge.set_defaults(func=do_purge)
+
+
+def _edit(subs):
+
+    edit = subs.add_parser(
+        'edit',
+        help='Edit subscription properties'
+    )
+
+    edit.add_argument(
+        'subscription_name',
+        metavar='NAME',
+        help='Name of the subscription to edit'
+    )
+
+    edit.add_argument(
+        '-n', '--name',
+        help='Set a new name.'
+    )
+
+    edit.add_argument(
+        '-u', '--url',
+        help='Set a new source URL.'
+    )
+
+    edit.add_argument(
+        '-t', '--title',
+        help='Set a new display title.'
+    )
+
+    edit.add_argument(
+        '-k', '--keep',
+        type=int,
+        help='Set the number of episodes to keep.'
+    )
+
+    edit.add_argument(
+        '-f', '--filename',
+        help='Set a new filename template.'
+    )
+
+    enabled_group = edit.add_mutually_exclusive_group()
+    enabled_group.add_argument(
+        '--enable',
+        dest='enabled',
+        action='store_true',
+        help='Enable the feed.'
+    )
+
+    enabled_group.add_argument(
+        '--disable',
+        dest='enabled',
+        action='store_false',
+        help='Disable the feed.'
+    )
+
+    def do_edit(app, args):
+        app.edit(args.subscription_name,
+            name=args.name,
+            url=args.url,
+            title=args.title,
+            max_episodes=args.keep,
+            filename_template=args.filename,
+            enabled=args.enabled
+        )
+
+    edit.set_defaults(func=do_edit)
 
 
 def read_config(extra_config_paths=None, require=False):

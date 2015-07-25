@@ -13,6 +13,7 @@ import os
 from podfetch import application
 from podfetch.application import WildcardFilter
 from podfetch.exceptions import NoSubscriptionError
+from podfetch.model import Episode, require_directory
 
 
 class DummyEntry(object):
@@ -164,6 +165,97 @@ def _create_subscription(app, name,
         path = os.path.join(content_dir, filename)
         with open(path, 'w') as f:
             f.write('some content')
+
+
+def test_edit_simple(app):
+    '''Assert that editing of simple subscription properties works.'''
+    name = 'the-name'
+    sub = app.add_subscription('some-url', name)
+
+    app.edit(name,
+        url='new-url',
+        title='New Title',
+        enabled=False,
+        filename_template='newtemplate',
+        max_episodes=10
+    )
+
+    reloaded = app.subscription_for_name(name)
+    assert reloaded.feed_url == 'new-url'
+    assert reloaded.title == 'New Title'
+    assert reloaded.enabled == False
+    assert reloaded.filename_template == 'newtemplate'
+    assert reloaded.max_episodes == 10
+
+
+def test_edit_rename_files(app):
+    sub = app.add_subscription('some-url', 'name',
+        filename_template='{}.{ext}')
+    content_dir = sub.content_dir
+    episodefile = os.path.join(content_dir, 'file.mp3')
+    require_directory(content_dir)
+    with open(episodefile, 'w') as f:
+        f.write('content')
+
+    sub.episodes.append(Episode(sub, 'id', files=[(
+        'url',
+        'audio/mpeg',
+        episodefile
+    )]))
+    sub.save()
+    sub._save_index()
+
+    app.edit('name', filename_template='{subscription_name}-{id}')
+    reloaded = app.subscription_for_name('name')
+    newpath = reloaded.episodes[0].files[0][2]
+    assert newpath != episodefile
+    assert os.path.isfile(newpath)
+
+
+def test_rename(app):
+    oldname = 'oldname'
+    newname = 'newname'
+    sub = app.add_subscription('some-url', oldname)
+
+    content_dir = sub.content_dir
+    cachefile = sub._cache_path('etag')
+    indexfile = sub.index_file
+    episodefile = os.path.join(content_dir, 'file.mp3')
+
+    require_directory(content_dir)
+    with open(episodefile, 'w') as f:
+        f.write('content')
+
+    sub._cache_put('etag', 'somevalue')
+    sub.episodes.append(Episode(sub, 'id', files=[(
+        'url',
+        'audio/mpeg',
+        episodefile
+    )]))
+    sub._save_index()
+
+    # preconditions
+    assert os.path.isfile(cachefile)
+    assert os.path.isfile(indexfile)
+    assert os.path.isdir(content_dir)
+    assert os.path.isfile(episodefile)
+
+    app.edit(oldname, name=newname)
+
+    with pytest.raises(NoSubscriptionError):
+        app.subscription_for_name(oldname)
+
+    # old files must not exist any more
+    assert not os.path.isfile(indexfile)
+    assert not os.path.isfile(cachefile)
+    assert not os.path.isfile(episodefile)
+    assert not os.path.isdir(content_dir)
+
+    # new files must exist
+    reloaded = app.subscription_for_name(newname)
+    assert reloaded is not None
+    assert len(reloaded.episodes) == 1
+    assert os.path.isfile(reloaded.episodes[0].files[0][2])
 
 
 if __name__ == '__main__':

@@ -238,10 +238,11 @@ def test_save_and_load_index(sub):
 def test_save_index_create_directory(sub, tmpdir):
     '''Assert that the directory for the index file is created
     if it does not exist.'''
-    sub.index_file = str(tmpdir.join('does-not-exist').join('index-file'))
+    sub.index_dir = str(tmpdir.join('does-not-exist'))
+    sub.name = 'name'
     sub.episodes.append(Episode(sub, 'id'))
     sub._save_index()
-    assert os.path.isfile(sub.index_file)
+    assert os.path.isfile(os.path.join(sub.index_dir, 'name.json'))
 
 
 def test_delete(sub, monkeypatch):

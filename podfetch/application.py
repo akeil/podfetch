@@ -348,6 +348,65 @@ class Podfetch(object):
         subscription.save()
         return deleted_files
 
+    def edit(self, subscription_name, name=None, url=None, title=None,
+        enabled=None, max_episodes=None, filename_template=None):
+        '''Edit a single subscription.
+
+        Changes the given properties of the subscription and saves changes.
+
+        If the ``name`` of a subscription is changed, the subscription's
+        ini-file is saved under the new name and the old file is removed.
+
+
+        :param str subscription_name:
+            Current name of the subscription to edit.
+        :param str name:
+            *optional*, set a new the name.
+        :param str url:
+            *optional*, set a new source url.
+        :param str title:
+            *optional, set a new title.
+        :param bool enabled:
+            *optional*, enable or disable the feed.
+        :param int max_episodes:
+            Set the maximum number of episodes.
+            Use ``-1`` for unlimited.
+        :param str filename_template:
+            *optional*, set a new template string for episode filenames.
+        '''
+        sub = self.subscription_for_name(subscription_name)
+
+        if url is not None:
+            sub.feed_url = url
+
+        if title is not None:
+            sub.title = title
+
+        if enabled is not None:
+            sub.enabled = bool(enabled)
+
+        if filename_template is not None:
+            sub.filename_template = filename_template
+
+        if max_episodes is not None:
+            sub.max_episodes = int(max_episodes)
+
+        if title is not None or filename_template is not None:
+            sub.rename_files()
+
+        sub.save()
+
+        # special case - name is also the filename
+        old_filename = os.path.join(self.subscriptions_dir, sub.name)
+        if name is not None:
+            sub.rename(name)
+
+        new_filename = os.path.join(self.subscriptions_dir, sub.name)
+        if old_filename != new_filename:
+            # we did save successfully, so the new file exists
+            log.info('Delete old subscription {f!r}.'.format(f=old_filename))
+            os.unlink(old_filename)
+
 
 # Filter ---------------------------------------------------------------------
 
