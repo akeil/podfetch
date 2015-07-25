@@ -629,6 +629,17 @@ def test_generate_filename_episode(sub):
     many = set([gen(i) for i in range(10)])
     assert len(many) == 10
 
+def test_generate_filename_pathsep(sub):
+    '''Allow path separator in template, but not in template args.'''
+    sub.filename_template = '{year}/{month}/{title}'
+    episode = Episode(sub, 'the-id',
+        title='the/title',
+        pubdate=(2001,2,3,4,5,6,0),
+    )
+
+    generated = episode._generate_filename('audio/mpeg', 0)
+    assert generated == '2001/02/the_title.mp3'
+
 
 def test_filename_template_from_app_config(sub):
     '''If no template is set for the subscription,
@@ -754,7 +765,6 @@ def test_safe_filename():
     cases = [
         ('already-safe', 'already-safe'),
         ('with witespace', 'with witespace'),
-        ('path/separator', 'path_separator'),
         ('a\\b', 'a_b'),
         ('a:b', 'a_b'),
     ]
@@ -783,7 +793,7 @@ def test_pretty_filename():
         ('a€c', 'ac'),
     ]
     for unpretty, expected in cases:
-        assert model.pretty_filename(unpretty) == expected
+        assert model.pretty(unpretty) == expected
 
 
 def test_file_extension_for_mime():

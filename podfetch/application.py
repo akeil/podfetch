@@ -350,7 +350,7 @@ class Podfetch(object):
 
     def edit(self, subscription_name, name=None, url=None, title=None,
         enabled=None, max_episodes=None, filename_template=None,
-        move_files=False):
+        content_dir=None, move_files=False):
         '''Edit a single subscription.
 
         Changes the given properties of the subscription and saves changes.
@@ -374,30 +374,39 @@ class Podfetch(object):
             Use ``-1`` for unlimited.
         :param str filename_template:
             *optional*, set a new template string for episode filenames.
+        :param str content_dir:
+            Base directory for downloaded episodes.
         :param bool move_files:
             *optional*, rename files for already downloaded episodes
             if for example the ``filename_template`` is changed.
         '''
+        log.debug('Edit subscription {n!r}.'.format(n=subscription_name))
         sub = self.subscription_for_name(subscription_name)
+        could_rename_files = False
 
         if url is not None:
             sub.feed_url = url
 
         if title is not None:
             sub.title = title
+            could_rename_files = True
 
         if enabled is not None:
             sub.enabled = bool(enabled)
 
         if filename_template is not None:
             sub.filename_template = filename_template
+            could_rename_files = True
+
+        if content_dir is not None:
+            sub.content_dir = content_dir
+            could_rename_files = True
 
         if max_episodes is not None:
             sub.max_episodes = int(max_episodes)
 
-        if title is not None or filename_template is not None:
-            if move_files:
-                sub.rename_files()
+        if could_rename_files and move_files:
+            sub.rename_files()
 
         sub.save()
 

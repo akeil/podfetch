@@ -187,12 +187,13 @@ class Subscription(object):
     def index_file(self):
         return os.path.join(self.index_dir, '{}.json'.format(self.name))
 
-    def save(self):
+    def save(self, path=None):
         '''Save this subscription to an ini-file in the given
         directory. The filename will be the ``name`` of this subscription.
 
-        :param str dirname:
-            The directory in which the ini-file is placed.
+        :param str path:
+            *optional*, path to the file to save to.
+            Default is ``config_dir/name``.
         '''
         cfg = configparser.ConfigParser()
         sec = 'subscription'
@@ -213,7 +214,7 @@ class Subscription(object):
         if self._content_dir:
             _set('content_dir', self._content_dir)
 
-        filename = os.path.join(self.config_dir, self.name)
+        filename = path or os.path.join(self.config_dir, self.name)
         log.debug(
             'Save Subscription {!r} to {!r}.'.format(self.name, filename))
         require_directory(self.config_dir)
@@ -487,6 +488,7 @@ class Subscription(object):
 
     def rename_files(self):
         '''Rename file to match a new filename pattern or content dir.'''
+        log.info('Rename downloaded episodes for {n!r}'.format(n=self.name))
         for episode in self.episodes:
             episode.move_local_files()
         self._save_index()
@@ -697,7 +699,7 @@ class Episode(object):
 
         ext = file_extension_for_mime(content_type)
         kind = content_type.split('/')[0]
-        values = {
+        values = {k: pretty(v) for k, v in {
             'subscription_name': self.subscription.name,
             'pub_date': '{}-{:0>2d}-{:0>2d}'.format(*self.pubdate[0:3]),
             'year': '{:0>4d}'.format(self.pubdate[0]),
@@ -711,7 +713,7 @@ class Episode(object):
             'id': self.id,
             'ext': ext,
             'kind': kind,
-        }
+        }.items()}
         filename = safe_filename(template.format(**values))
 
         # template may or may not include file-ext
@@ -726,13 +728,15 @@ class Episode(object):
             filename = '{}-{:0>2d}'.format(filename, index)
 
         filename = '{}.{}'.format(filename, ext)
-        return safe_filename(pretty_filename(filename))
+        return safe_filename(filename)
 
     def delete_local_files(self):
         '''Delete the local files for this episode (if they exist).'''
         while self.files:
             __, __, local_file = self.files.pop()
             delete_if_exists(local_file)
+
+        # TODO remove empty directories
 
     def move_local_files(self):
         files = self.files[:]
@@ -743,10 +747,17 @@ class Episode(object):
                 self._generate_filename(content_type, index)
             )
             if newpath != oldpath:
-                require_directory(self.subscription.content_dir)
-                shutil.move(oldpath, newpath)
-                self.files[index] = (url, content_type, newpath)
-
+                dirname = os.path.dirname(newpath)
+                require_directory(dirname)
+                log.debug('Move {o!r} -> {n!r}'.format(o=oldpath, n=newpath))
+                try:
+                    shutil.move(oldpath, newpath)
+                    self.files[index] = (url, content_type, newpath)
+                except OSError as e:
+                    if e.errno != os.errno.ENOENT:
+                        raise
+                    log.warning(('Failed to rename file {f!r}.'
+                        ' File does not exist.').format(f=oldpath))
 
     def __repr__(self):
         return '<Episode id={s.id!r}>'.format(s=self)
@@ -793,7 +804,7 @@ def file_extension_for_mime(mime):
         raise ValueError('Unsupported content type {!r}.'.format(mime))
 
 
-def pretty_filename(unpretty):
+def pretty(unpretty):
     '''Apply some replacements and conversion to the given string
     and return a converted string that makes a "prettier" filename.
 
@@ -811,7 +822,7 @@ def pretty_filename(unpretty):
     if unpretty is None:
         return None
 
-    pretty = unpretty
+    rv = str(unpretty)
 
     translations = [
         (' ', '_'),
@@ -834,21 +845,21 @@ def pretty_filename(unpretty):
     deletions = ['*', '?', '!', '"', '\'', '^', '\\', '´', '`', '<', '>']
 
     for text, replacement in itertools.chain(translations, [(c, '') for c in deletions]):
-        pretty = pretty.replace(text, replacement)
+        rv = rv.replace(text, replacement)
 
     # delete non-ascii chars and whitespace
     import string
     allowed_chars = string.ascii_letters + string.digits + string.punctuation
-    pretty = ''.join(c for c in pretty if c in allowed_chars)
+    rv = ''.join(c for c in rv if c in allowed_chars)
 
     # replace multiple occurence of separators with one separator
     # "---" becomes "-"
     separators = ['-', '_', '.']
     for sep in separators:
         pattern = '[{}]+'.format(sep)
-        pretty = re.sub(pattern, sep, pretty)
+        rv = re.sub(pattern, sep, rv)
 
-    return pretty
+    return rv
 
 
 def safe_filename(unsafe):
@@ -858,8 +869,7 @@ def safe_filename(unsafe):
     :rtype str:
         A string safe for use as a filename.
     '''
-    safe = unsafe.replace('/', '_')
-    safe = safe.replace('\\', '_')
+    safe = unsafe.replace('\\', '_')
     safe = safe.replace(':', '_')
     return safe
 

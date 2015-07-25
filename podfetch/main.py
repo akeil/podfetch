@@ -3,16 +3,20 @@
 '''
 The command line interface for Podfetch.
 '''
-import sys
-import os
+import argparse
+import hashlib
 import itertools
 import logging
-from logging import handlers
-from textwrap import wrap
-import argparse
+import os
+import re
+import subprocess
+import sys
+import tempfile
 from datetime import date
 from datetime import timedelta
-import re
+from logging import handlers
+from textwrap import wrap
+
 try:
     import configparser  # python 3
 except ImportError:
@@ -27,6 +31,7 @@ from podfetch.application import PubdateAfter
 from podfetch.application import PubdateBefore
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import UserError
+from podfetch.model import Subscription
 
 
 PROG_NAME = 'podfetch'
@@ -682,18 +687,21 @@ def _edit(subs):
         help='Set a new filename template'
     )
 
+    edit.add_argument(
+        '-d', '--directory',
+        help='base directory to store downloaded episodes'
+    )
+
     enabled_group = edit.add_mutually_exclusive_group()
     enabled_group.add_argument(
         '--enable',
-        dest='enabled',
         action='store_true',
         help='Enable the feed'
     )
 
     enabled_group.add_argument(
         '--disable',
-        dest='enabled',
-        action='store_false',
+        action='store_true',
         help='Disable the feed'
     )
 
@@ -705,17 +713,185 @@ def _edit(subs):
     )
 
     def do_edit(app, args):
-        app.edit(args.subscription_name,
-            name=args.name,
-            url=args.url,
-            title=args.title,
-            max_episodes=args.keep,
-            filename_template=args.filename,
-            enabled=args.enabled,
-            move_files=args.move_files
+
+        # test if we want to open the editor
+        # or just set fields
+        open_editor = (
+                args.name is None
+            and args.url is None
+            and args.title is None
+            and args.keep is None
+            and args.filename is None
+            and args.directory is None
+            and not args.enable
+            and not args.disable
         )
+        log.debug('open in editor {}'.format(open_editor))
+
+        if open_editor:
+            _editor(app, args)
+        else:
+            app.edit(args.subscription_name,
+                name=args.name,
+                url=args.url,
+                title=args.title,
+                max_episodes=args.keep,
+                filename_template=args.filename,
+                enabled=args.enable or not args.disable,
+                move_files=args.move_files
+            )
 
     edit.set_defaults(func=do_edit)
+
+
+all_keys = [
+ 'url', 'title', 'enabled',
+ 'filename_template', 'content_dir', 'max_episodes'
+]
+
+comments = {
+    'url': (
+        'The source URL for this podcast.',
+        'Example: http://example.com/podcast',
+    ),
+    'max_episodes': (
+        'Maximum number of episodes to keep.',
+        'Relevant when using the `purge` command.',
+        'Use `-1` to keep an unlimited number of files.',
+    ),
+    'filename_template': (
+        'Template for filenames of downloaded episodes.',
+        'Template parameters:',
+        '  subscription_name  name of the parent subscription',
+        '  pub_date           publication date, yyyy-mm-dd',
+        '  year               year from pub_date',
+        '  month              month from pub_date',
+        '  day                day from pub_date',
+        '  hour               hour from pub_date',
+        '  minute             minute from pub_date',
+        '  second             second from pub_date',
+        '  title              episode title',
+        '  feed_title         title of the parent feed',
+        '  id                 episode id',
+        '  ext                file extension, optional',
+        '  kind               one of video or audio',
+    ),
+    'content_dir': (
+        'The directory where downloaded episodes are stored.',
+        'Default is to use the directory from app config.',
+        'from application config.'
+    ),
+    'title': (
+        'A Display Title for the subscription.',
+    ),
+    'enabled': (
+        'If set to `no`, no new episodes will be downloaded.',
+    ),
+}
+
+
+def _checksum(path):
+    hash = hashlib.md5()
+    with open(path, 'rb') as f:
+        hash.update(f.read())
+    return hash.hexdigest()
+
+
+def _read_props(path):
+    '''read all lines that contain values which are already set.'''
+    values = {}
+    with open(path) as f:
+        for line in f.readlines():
+            # either "key = value"  or "key: value"
+            key = line.split('=')[0].split(':')[0].strip()
+            values[key] = line
+
+    return values
+
+
+def _write_props(path, values):
+    '''Write an ini file with subscription properties to the given path.
+    In addition to the given values, write ...
+    - all keys
+    - in fixed order
+    - comments for each key
+    '''
+    with open(path, 'w') as f:
+        f.write('# Subscription properties')
+        f.write('\n')
+        f.write('[subscription]')
+        f.write('\n')
+
+        for key in all_keys:
+            f.write('\n')
+            f.write('# {s}'.format(s='-' * 77))
+            f.write('\n')
+            if key in comments:
+                for comment in comments[key]:
+                    f.write('# {s}'.format(s=comment))
+                    f.write('\n')
+                f.write('\n')
+
+            if key in values:
+                f.write(values[key])
+            else:
+                f.write('# {k} = '.format(k=key))
+                f.write('\n')
+
+        f.write('\n')
+
+
+def _open_in_editor(path):
+    before = _checksum(path)
+    # TODO: read editor from cfg
+    for candidate in ('EDITOR', 'VISUAL'):
+        editor = os.environ.get(candidate)
+        if editor:
+            break
+
+    if not editor:
+        raise ValueError('No editor found')
+    else:
+        log.debug('Open {p!r} with {e!r}'.format(p=path, e=editor))
+        subprocess.check_call([editor, path] )
+    after = _checksum(path)
+    log.debug('Checksum before: {c!r}'.format(c=before))
+    log.debug('Checksum after:  {c!r}'.format(c=after))
+    return before != after
+
+
+def _editor(app, args):
+    '''Write properties of the feed to a temporary file,
+    open that file in $EDITOR and apply changes made in the editor.'''
+    sub = app.subscription_for_name(args.subscription_name)
+    unused, tmp = tempfile.mkstemp()
+
+    try:
+        sub.save(path=tmp)
+        _write_props(tmp, _read_props(tmp))
+        changes_made = _open_in_editor(tmp)
+        if changes_made:
+            log.info('Apply changes')
+            changed = Subscription.from_file(
+                tmp,
+                sub.index_dir,
+                app.content_dir,
+                sub.cache_dir,
+            )
+            app.edit(sub.name,
+                url = changed.feed_url or None,
+                title = changed.title or None,
+                max_episodes=changed.max_episodes or None,
+                filename_template=changed.filename_template or None,
+                content_dir=changed._content_dir or None,
+                enabled=changed.enabled,
+                move_files=args.move_files
+            )
+        else:
+            log.warning('No changes were made.')
+
+    finally:
+        os.unlink(tmp)
 
 
 def read_config(extra_config_paths=None, require=False):
