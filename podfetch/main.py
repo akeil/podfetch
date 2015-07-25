@@ -22,6 +22,7 @@ import podfetch
 from podfetch import application
 from podfetch.application import Filter
 from podfetch.application import WildcardFilter
+from podfetch.application import NameFilter
 from podfetch.application import PubdateAfter
 from podfetch.application import PubdateBefore
 from podfetch.exceptions import NoSubscriptionError
@@ -508,7 +509,7 @@ def setup_command_parsers(parent_parser):
             filename_template=args.template,
         )
         if not args.no_update:
-            app.update(sub.name)
+            app.update(NameFilter(sub.name))
         return 0
     add.set_defaults(func=do_add)
 

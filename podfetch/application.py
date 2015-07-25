@@ -422,6 +422,15 @@ class _Chain(Filter):
         return '<Chain {s.mode!r} {s.filters!r}>'.format(s=self)
 
 
+class NameFilter(Filter):
+
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self, candidate):
+        return candidate == self.name
+
+
 class WildcardFilter(Filter):
     '''Filter with shell wildcards using ``fnmatch``.'''
 
