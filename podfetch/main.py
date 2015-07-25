@@ -370,14 +370,16 @@ def _list(subs):
         '--since', '-s',
         metavar='DATE',
         type=datearg,
-        help='Show only episodes downloaded SINCE the given date'
+        help=('Show only episodes downloaded SINCE the given date;'
+            ' implies the -a option')
     )
 
     ls.add_argument(
         '--until', '-u',
         metavar='DATE',
         type=datearg,
-        help='Show only episodes downloaded UNTIL the given date'
+        help=('Show only episodes downloaded UNTIL the given date;'
+            ' implies the -a option')
     )
 
     ls.add_argument(
@@ -415,8 +417,10 @@ def _list(subs):
         # filter episodes
         accept = Filter()
         if args.since:
+            args.all = True
             accept = accept.and_is(PubdateAfter(args.since))
         if args.until:
+            args.all = True
             accept = accept.and_is(PubdateBefore(args.until))
         log.debug('episode filter: {a!r}'.format(a=accept))
         episodes = [
