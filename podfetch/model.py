@@ -450,7 +450,7 @@ class Subscription(object):
 
         return deleted_files
 
-    def rename(self, newname):
+    def rename(self, newname, move_files=False):
         log.info('Rename subscription {o!r} -> {n!r}.'.format(
             o=self.name, n=newname))
 
@@ -465,7 +465,8 @@ class Subscription(object):
 
         self.name = newname
         self.save()  # TODO: let caller `save()` ?
-        self.rename_files()
+        if move_files:
+            self.rename_files()
 
         # index was loaded - save it to the new name
         log.info('Save index under new name {f!r}.'.format(f=self.index_file))

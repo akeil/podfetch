@@ -205,7 +205,10 @@ def test_edit_rename_files(app):
     sub.save()
     sub._save_index()
 
-    app.edit('name', filename_template='{subscription_name}-{id}')
+    app.edit('name',
+        filename_template='{subscription_name}-{id}',
+        move_files=True
+    )
     reloaded = app.subscription_for_name('name')
     newpath = reloaded.episodes[0].files[0][2]
     assert newpath != episodefile
@@ -240,7 +243,7 @@ def test_rename(app):
     assert os.path.isdir(content_dir)
     assert os.path.isfile(episodefile)
 
-    app.edit(oldname, name=newname)
+    app.edit(oldname, name=newname, move_files=True)
 
     with pytest.raises(NoSubscriptionError):
         app.subscription_for_name(oldname)

@@ -693,6 +693,13 @@ def _edit(subs):
         help='Disable the feed.'
     )
 
+    edit.add_argument(
+        '--no-move',
+        action='store_false',
+        dest='move_files',
+        help='Do not rename downloaded episode files'
+    )
+
     def do_edit(app, args):
         app.edit(args.subscription_name,
             name=args.name,
@@ -700,7 +707,8 @@ def _edit(subs):
             title=args.title,
             max_episodes=args.keep,
             filename_template=args.filename,
-            enabled=args.enabled
+            enabled=args.enabled,
+            move_files=args.move_files
         )
 
     edit.set_defaults(func=do_edit)
