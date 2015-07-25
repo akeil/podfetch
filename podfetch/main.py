@@ -31,7 +31,7 @@ from podfetch.exceptions import UserError
 
 PROG_NAME = 'podfetch'
 VERSION = podfetch.__version__
-DESCRIPTION = 'Fetch audio podcasts and store files locally.'
+DESCRIPTION = 'Fetch podcasts and store files locally'
 AUTHOR = podfetch.__author__
 AUTHOR_MAIL = podfetch.__email__
 
@@ -199,19 +199,19 @@ def setup_argparser():
         '--version',
         action='version',
         version='{p} {v}'.format(p=PROG_NAME, v=VERSION),
-        help='Print version number and exit.'
+        help='Print version number and exit'
     )
 
     parser.add_argument(
         '-v', '--verbose',
         action='store_true',
-        help='Increase console output.',
+        help='Increase console output',
     )
 
     parser.add_argument(
         '-q', '--quiet',
         action='store_true',
-        help='Write nothing to stdout.',
+        help='Write nothing to stdout',
     )
 
     parser.add_argument(
@@ -239,8 +239,8 @@ def setup_argparser():
         action=LogLevelAction,
         default=logging.WARNING,
         choices=loglevels.keys(),
-        help=('Controls the log-level for LOGFILE.'
-            ' Defaults to {default}.').format(default=DEFAULT_LOG_LEVEL),
+        help=('Controls the log-level for LOGFILE;'
+            ' defaults to {default}').format(default=DEFAULT_LOG_LEVEL),
     )
 
     def path(argstr):
@@ -253,7 +253,7 @@ def setup_argparser():
     parser.add_argument(
         '--config',
         type=path,
-        help='Read configuration from the specified file.',
+        help='Read configuration from the specified file',
     )
 
     return parser
@@ -323,7 +323,7 @@ def setup_command_parsers(parent_parser):
 def _update(subs):
     fetch = subs.add_parser(
         'update',
-        help='Update subscriptions.'
+        help='Update subscriptions'
     )
 
     fetch.add_argument(
@@ -353,7 +353,7 @@ def _update(subs):
 def _list(subs):
     ls = subs.add_parser(
         'ls',
-        help='List Episodes by date.'
+        help='List Episodes by date'
     )
 
     ls.add_argument(
@@ -370,20 +370,20 @@ def _list(subs):
         '--since', '-s',
         metavar='DATE',
         type=datearg,
-        help='Show only episodes downloaded SINCE the given date.'
+        help='Show only episodes downloaded SINCE the given date'
     )
 
     ls.add_argument(
         '--until', '-u',
         metavar='DATE',
         type=datearg,
-        help='Show only episodes downloaded UNTIL the given date.'
+        help='Show only episodes downloaded UNTIL the given date'
     )
 
     ls.add_argument(
         '--path', '-p',
         action='store_true',
-        help='Print paths instead of titles.',
+        help='Print paths instead of titles',
     )
 
     n_control = ls.add_mutually_exclusive_group()
@@ -391,14 +391,14 @@ def _list(subs):
         '--newest', '-n',
         metavar='N',
         type=int,
-        help=('Control the number of episodes shown.'
-            ' Excludes the --all option.'),
+        help=('Control the number of episodes shown;'
+            ' excludes the --all option'),
     )
     n_control.add_argument(
         '--all', '-a',
         action='store_true',
-        help=('Do not limit the number of episodes shown.'
-            ' Excludes the --newest option.'),
+        help=('Do not limit the number of episodes shown;'
+            ' excludes the --newest option'),
     )
 
     def do_ls(app, args):
@@ -471,24 +471,24 @@ def _list(subs):
 def _add(subs):
     add = subs.add_parser(
         'add',
-        help='Add a new subscription.'
+        help='Add a new subscription'
     )
 
     add.add_argument(
         'url',
-        help='The feed URL.'
+        help='The feed URL'
     )
     add.add_argument(
         '-n', '--name',
-        help=('A name for the subscription.'
-            ' If none is given, the name will be derived from the URL.'),
+        help=('A name for the subscription;'
+            ' if none is given, the name will be derived from the URL'),
     )
     add.add_argument(
         '-m', '--max-episodes',
         type=int,
         default=-1,
-        help=('The maximum number of downloaded episodes to keep.'
-            ' Default is "-1" (unlimited).'),
+        help=('The maximum number of downloaded episodes to keep;'
+            ' default is "-1" (unlimited)'),
     )
     add.add_argument(
         '-t', '--template',
@@ -508,7 +508,7 @@ def _add(subs):
     add.add_argument(
         '--no-update',
         action='store_true',
-        help='Do not immediately fetch content for the new subscription.',
+        help='Do not immediately fetch content for the new subscription',
     )
 
     def do_add(app, args):
@@ -528,14 +528,14 @@ def _add(subs):
 def _show(subs):
     show = subs.add_parser(
         'show',
-        help='View subscription details.',
+        help='View subscription details',
     )
     show.add_argument(
         'subscription_names',
         metavar='NAME',
         nargs='*',
-        help=('Name(s) of subscriptions to show.'
-            ' If not given, show all.'),
+        help=('Name(s) of subscriptions to show;'
+            ' if not given, show all'),
     )
 
     out = sys.stdout
@@ -575,19 +575,19 @@ def _show(subs):
 def _del(subs):
     dele = subs.add_parser(
         'del',
-        help='Delete subscriptions.',
+        help='Delete subscriptions',
     )
     dele.add_argument(
         'subscription_names',
         metavar='NAME',
         nargs='+',
-        help='Name(s) of subscription(s) to delete.'
+        help='Name(s) of subscription(s) to delete'
     )
     dele.add_argument(
         '--episodes', '-e',
         action='store_true',
-        help=('Also delete downloaded episodes.'
-            ' Default is to keep episodes.'),
+        help=('Also delete downloaded episodes;'
+            ' default is to keep episodes'),
     )
 
     def do_dele(app, args):
@@ -605,7 +605,7 @@ def _del(subs):
 def _purge(subs):
     purge = subs.add_parser(
         'purge',
-        help='Remove old downloaded episodes.'
+        help='Remove old downloaded episodes'
     )
     purge.add_argument(
         'subscription_name',
@@ -617,7 +617,7 @@ def _purge(subs):
     purge.add_argument(
         '-s', '--simulate',
         action='store_true',
-        help='List filenames, do not delete.'
+        help='List filenames, do not delete'
     )
 
     def do_purge(app, args):
@@ -654,28 +654,28 @@ def _edit(subs):
 
     edit.add_argument(
         '-n', '--name',
-        help='Set a new name.'
+        help='Set a new name'
     )
 
     edit.add_argument(
         '-u', '--url',
-        help='Set a new source URL.'
+        help='Set a new source URL'
     )
 
     edit.add_argument(
         '-t', '--title',
-        help='Set a new display title.'
+        help='Set a new display title'
     )
 
     edit.add_argument(
         '-k', '--keep',
         type=int,
-        help='Set the number of episodes to keep.'
+        help='Set the number of episodes to keep'
     )
 
     edit.add_argument(
         '-f', '--filename',
-        help='Set a new filename template.'
+        help='Set a new filename template'
     )
 
     enabled_group = edit.add_mutually_exclusive_group()
@@ -683,14 +683,14 @@ def _edit(subs):
         '--enable',
         dest='enabled',
         action='store_true',
-        help='Enable the feed.'
+        help='Enable the feed'
     )
 
     enabled_group.add_argument(
         '--disable',
         dest='enabled',
         action='store_false',
-        help='Disable the feed.'
+        help='Disable the feed'
     )
 
     edit.add_argument(
