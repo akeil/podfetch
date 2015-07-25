@@ -9,6 +9,8 @@ Tests for `model` module.
 '''
 import os
 import stat
+from datetime import datetime
+from datetime import timedelta
 
 import pytest
 import mock
@@ -156,7 +158,7 @@ def test_load_nonexisting_raises_error():
     must raise a NoSubscriptionError.'''
     with pytest.raises(NoSubscriptionError):
         sub = Subscription.from_file(
-            'does-not-exist', 
+            'does-not-exist',
             'index_dir', 'content_dir', 'cache_dir'
         )
 
@@ -709,6 +711,18 @@ def test_episode_from_entry(sub):
     assert ('http://example.com/2', 'audio/mpeg', None) in episode.files
     assert len(episode.files) == 2
 
+
+def test_episode_from_entry_pubdate(sub):
+    '''Assert that the pubdate is floored to "now"'''
+    future = datetime.utcnow() + timedelta(days=2)
+    pubdate = future.timetuple()
+    entry = DummyEntry(
+        id='the-id',
+        published_parsed=pubdate
+    )
+
+    episode = Episode.from_entry(sub, entry)
+    assert episode.pubdate[2] != pubdate[2]
 
 def test_episode_as_dict(sub):
     pubdate = (2001,2,3,13,13,15,0)

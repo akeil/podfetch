@@ -20,15 +20,15 @@ Instances of the ``Subscription`` class are normally created by the
         passing values from the config file.
 
 '''
-import os
-import stat
-import logging
-import shutil
 import itertools
+import json
+import logging
+import os
 import re
+import shutil
+import stat
 from collections import namedtuple
 from datetime import datetime
-import json
 
 try:
     import configparser  # python 3.x
@@ -72,6 +72,29 @@ DEFAULT_FILENAME_TEMPLATE = '{pub_date}_{id}'
 CACHE_ETAG = 'etag'
 CACHE_MODIFIED = 'modified'
 CACHE_ALL = [CACHE_ETAG, CACHE_MODIFIED,]
+
+
+try:  # py 3.x
+    from datetime import timezone
+    UTC = timezone.utc
+except ImportError:  # py 2.x
+    from datetime import tzinfo
+    from datetime import timedelta
+
+    _ZERO = timedelta(0)
+
+    class _UTC(tzinfo):
+
+        def utcoffset(self, dt):
+            return _ZERO
+
+        def tzname(self, dt):
+            return 'UTC'
+
+        def dst(self, dt):
+            return _ZERO
+
+    UTC = _UTC()
 
 
 class Subscription(object):
@@ -487,7 +510,7 @@ class Episode(object):
 
         self.title = kwargs.get('title')
         self.description = kwargs.get('description')
-        today = datetime.today().timetuple()
+        today = datetime.now(UTC).timetuple()
         self.pubdate = kwargs.get('pubdate', today)
         self.files = [
             (url, content_type, local)
@@ -504,10 +527,30 @@ class Episode(object):
             an Episode instance.
         '''
         id_ = id_for_entry(entry)
+
+        # if pubdate is in the future, set it to 'now'
+        today = datetime.now(UTC)
+        pubdate = entry.published_parsed
+        if pubdate:
+            fromentry = datetime(
+                pubdate[0],  # year
+                pubdate[1],  # month
+                pubdate[2],  # day
+                pubdate[3],  # hour
+                pubdate[4],  # minute
+                pubdate[5],  # second
+                tzinfo=UTC
+            )
+
+            if fromentry > today:
+                pubdate = today.timetuple()
+        else:
+            pubdate = today.timetuple()
+
         return class_(parent_subscription, id_,
             title=entry.title,
             description=entry.description,
-            pubdate=entry.published_parsed,
+            pubdate=pubdate,
             files=[
                 (enc.href, enc.type, None)
                 for enc in entry.get('enclosures', [])

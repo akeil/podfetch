@@ -9,7 +9,7 @@ from setuptools.command.test import test as TestCommand
 
 
 # remember __init__.py
-VERSION = '0.4.5.dev3'
+VERSION = '0.4.5.dev4'
 
 if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
