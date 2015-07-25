@@ -311,8 +311,15 @@ def setup_command_parsers(parent_parser):
         The parent parser.
     '''
     subs = parent_parser.add_subparsers()
+    _update(subs)
+    _list(subs)
+    _add(subs)
+    _show(subs)
+    _del(subs)
+    _purge(subs)
 
-    # update-------------------------------------------------------------------
+
+def _update(subs):
     fetch = subs.add_parser(
         'update',
         help='Update subscriptions.'
@@ -341,7 +348,8 @@ def setup_command_parsers(parent_parser):
 
     fetch.set_defaults(func=do_update)
 
-    # list --------------------------------------------------------------------
+
+def _list(subs):
     ls = subs.add_parser(
         'ls',
         help='List Episodes by date.'
@@ -458,7 +466,8 @@ def setup_command_parsers(parent_parser):
 
     ls.set_defaults(func=do_ls)
 
-    # add ---------------------------------------------------------------------
+
+def _add(subs):
     add = subs.add_parser(
         'add',
         help='Add a new subscription.'
@@ -511,9 +520,11 @@ def setup_command_parsers(parent_parser):
         if not args.no_update:
             app.update(NameFilter(sub.name))
         return 0
+
     add.set_defaults(func=do_add)
 
-    # show ---------------------------------------------------------------------
+
+def _show(subs):
     show = subs.add_parser(
         'show',
         help='View subscription details.',
@@ -559,7 +570,8 @@ def setup_command_parsers(parent_parser):
 
     show.set_defaults(func=do_show)
 
-    # del ----------------------------------------------------------------------
+
+def _del(subs):
     dele = subs.add_parser(
         'del',
         help='Delete subscriptions.',
@@ -588,7 +600,8 @@ def setup_command_parsers(parent_parser):
 
     dele.set_defaults(func=do_dele)
 
-    # purge --------------------------------------------------------------------
+
+def _purge(subs):
     purge = subs.add_parser(
         'purge',
         help='Remove old downloaded episodes.'
