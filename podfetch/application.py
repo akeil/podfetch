@@ -26,13 +26,13 @@ Context:
     subscription.content_dir
 
 '''
-import os
-import shutil
-import tempfile
-import logging
-import subprocess
-import shlex
 import fnmatch
+import logging
+import os
+import shlex
+import shutil
+import subprocess
+import tempfile
 import threading
 from datetime import date
 
@@ -50,7 +50,6 @@ try:
     import queue  # python 3.x
 except ImportError:
     import Queue as queue  # python 2.x
-
 
 import feedparser
 
@@ -72,11 +71,6 @@ EVENTS = (
     SUBSCRIPTION_ADDED,
     SUBSCRIPTION_REMOVED,
 )
-
-# exit codes ------------------------------------------------------------------
-ALL_FAILED = 2
-SOME_FAILED = 3
-OK = 0
 
 
 # application -----------------------------------------------------------------

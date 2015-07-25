@@ -318,9 +318,8 @@ def test_update_feed_unchanged(sub, monkeypatch):
     sub._cache_put('modified', 'modified-value')
     sub._update_entries = mock.MagicMock()
 
-    rv = sub.update()
+    sub.update()
 
-    assert rv == 0
     assert not sub._update_entries.called
     assert sub._cache_get('etag') == 'etag-value'
     assert sub._cache_get('modified') == 'modified-value'
@@ -334,9 +333,8 @@ def test_forced_update_feed_unchanged(sub, monkeypatch):
     sub._cache_put('etag', 'etag-value')
     sub._cache_put('modified', 'modified-value')
 
-    rv = sub.update(force=True)
+    sub.update(force=True)
 
-    assert rv == 0
     assert len(sub.episodes) > 0
 
 
@@ -430,15 +428,20 @@ def test_downloaded_file_perms(tmpdir, monkeypatch):
 
 
 def test_download_error(sub, monkeypatch):
+    '''if download failed, episode should be present but w/o local file'''
     with_dummy_feed(monkeypatch)
 
     def failing_download(url, dst):
         raise ValueError
 
-    monkeypatch.setattr(model, 'download', failing_download)
-    rv = sub.update()
+    # precondition
+    assert len(sub.episodes) == 0
 
-    assert rv == model.ALL_EPISODES_FAILED
+    monkeypatch.setattr(model, 'download', failing_download)
+    sub.update()
+
+    assert len(sub.episodes) > 1
+    assert not sub.episodes[0].files[0][2]  # no local file
 
 
 def outdated_test_generate_enclosure_filename_template(sub):

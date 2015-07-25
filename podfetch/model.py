@@ -50,12 +50,8 @@ from podfetch.exceptions import FeedNotFoundError
 log = logging.getLogger(__name__)
 
 
-OK = 0
-SOME_EPISODES_FAILED = 1
-ALL_EPISODES_FAILED = 2
-
-
 ContentTypeInfo = namedtuple('ContentTypeInfo', 'file_ext')
+
 
 SUPPORTED_CONTENT = {
     'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
@@ -375,23 +371,21 @@ class Subscription(object):
                 log.debug('Forced download, ignore HTTP etag and modified.')
             else:
                 log.info('Feed for {!r} is not modified.'.format(self.name))
-                return OK
+                return
         elif feed.status == 301:  # moved permanent
             log.info('Received status 301, change url for subscription.')
             self.feed_url = feed.href
             self.save()
 
         try:
-            rv = self._update_entries(feed, force=force)
+            self._update_entries(feed, force=force)
         finally:
             self._save_index()
         # store etag, modified after *successful* update
         self._cache_put(CACHE_ETAG, feed.get('etag'))
         self._cache_put(CACHE_MODIFIED, feed.get('modified'))
-        return rv
 
     def _update_entries(self, feed, force=False):
-        errors = 0
         for entry in feed.get('entries', []):
             id_ = id_for_entry(entry)
             episode = self._episode_for_id(id_)
@@ -406,16 +400,8 @@ class Subscription(object):
             try:
                 episode.download(force=force)
             except Exception as e:
-                errors += 1
                 log.error(('Failed to update episode {epi}.'
                     ' Error was {e!r}').format(epi=episode, e=e))
-
-        if errors == len(feed.entries):
-            return ALL_EPISODES_FAILED
-        elif errors != 0:
-            return SOME_EPISODES_FAILED
-        else:
-            return OK
 
     def _episode_for_id(self, id_):
         for episode in self.episodes:
