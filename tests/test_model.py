@@ -213,7 +213,7 @@ def test_save(tmpdir, sub):
     assert 'template' in text
     assert 'subscription-title' in text
     assert 'my-content-dir' in text
-    assert 'True' in text  # from enabled=True
+    assert 'yes' in text  # from enabled=True
 
 
 def test_save_and_load_index(sub):

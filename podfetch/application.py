@@ -352,7 +352,6 @@ class Podfetch(object):
         If the ``name`` of a subscription is changed, the subscription's
         ini-file is saved under the new name and the old file is removed.
 
-
         :param str subscription_name:
             Current name of the subscription to edit.
         :param str name:

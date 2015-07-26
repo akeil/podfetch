@@ -64,6 +64,9 @@ SUPPORTED_CONTENT = {
 # for generating enclosure-filenames
 DEFAULT_FILENAME_TEMPLATE = '{pub_date}_{id}'
 
+# section in subscription ini's
+SECTION = 'subscription'
+
 # cache keys
 CACHE_ETAG = 'etag'
 CACHE_MODIFIED = 'modified'
@@ -155,8 +158,6 @@ class Subscription(object):
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
 
-        #self.index_file = os.path.join(
-        #    self.index_dir, '{}.json'.format(self.name))
         self.episodes = []
         self._load_index()
 
@@ -181,6 +182,7 @@ class Subscription(object):
 
     @property
     def index_file(self):
+        '''Absolute path to the index file for this Subscription.'''
         return os.path.join(self.index_dir, '{}.json'.format(self.name))
 
     def save(self, path=None):
@@ -192,28 +194,23 @@ class Subscription(object):
             Default is ``config_dir/name``.
         '''
         cfg = configparser.ConfigParser()
-        sec = 'subscription'
-        cfg.add_section(sec)
+        cfg.add_section(SECTION)
 
-        _set = lambda k, v: cfg.set(sec, k,v)
+        def _set(key, value):
+            if value:  # will lose max_episodes = 0
+                cfg.set(SECTION, key ,value)
 
         _set('url', self.feed_url)
         _set('max_episodes', str(self.max_episodes))
-        _set('enabled', str(self.enabled))
-
-        if self.title:
-            _set('title', self.title)
-
-        if self.filename_template:
-            _set('filename_template', self.filename_template)
-
-        if self._content_dir:
-            _set('content_dir', self._content_dir)
+        _set('enabled', 'yes' if self.enabled else 'no')
+        _set('title', self.title)
+        _set('filename_template', self.filename_template)
+        _set('content_dir', self._content_dir)
 
         filename = path or os.path.join(self.config_dir, self.name)
         log.debug(
             'Save Subscription {!r} to {!r}.'.format(self.name, filename))
-        require_directory(self.config_dir)
+        require_directory(os.path.dirname(filename))
         with open(filename, 'w') as fp:
             cfg.write(fp)
 
@@ -221,6 +218,17 @@ class Subscription(object):
     def from_file(cls, path, index_dir, app_content_dir, cache_dir):
         '''Load a ``Subscription`` from its config file.
 
+        :param str path:
+            File to load from.
+        :param str index_dir:
+            Base directory in which the loaded Subscription should located
+            it's ``index_file``.
+        :param str app_content_dir:
+            Base directory to which the Subscription should save downloaded
+            episodes *unless* a content directory is configured in the supplied
+            ini file.
+        :param str cache_dir:
+            Directory to store cache files.
         :rtype object:
             A Subscription instance.
         :raises:
@@ -241,54 +249,34 @@ class Subscription(object):
                 'No config file exists at {!r}.'.format(path))
 
         log.debug('Read subscription from {!r}.'.format(path))
-        sec = 'subscription'
 
-        # mandatory property 'url'
-        try:
-            feed_url = cfg.get(sec, 'url')
-        except configparser.NoSectionError:
-            raise NoSubscriptionError(('Missing section {!r} in file {!r}.'
-                ' Not a subscription-file?'.format(sec, path)))
-        except configparser.NoOptionError:
+        def get(key, default=None, fmt=None):
+            rv = default
+            try:
+                if fmt == 'int':
+                    rv = cfg.getint(SECTION, key)
+                elif fmt == 'bool':
+                    rv = cfg.getboolean(SECTION, key)
+                else:
+                    rv = cfg.get(SECTION, key)
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                log.info('Could not read {k!r} from ini.'.format(k=key))
+            return rv
+
+        feed_url = get('url')  # mandatory property 'url'
+        if not feed_url:
             raise NoSubscriptionError(
-                'Missing required field {!r} in {!r}.'.format('url', path))
-        # TODO: make sure that url is valid
-
-        # optional properties
-        try:
-            max_episodes = cfg.getint(sec, 'max_episodes')
-        except configparser.NoOptionError:
-            max_episodes = -1
-
-        try:
-            filename_template = cfg.get(sec, 'filename_template')
-        except configparser.NoOptionError:
-            filename_template = None
-
-        try:
-            content_dir = cfg.get(sec, 'content_dir')
-        except configparser.NoOptionError:
-            content_dir = None
-
-        try:
-            title = cfg.get(sec, 'title')
-        except configparser.NoOptionError:
-            title = None
-
-        try:
-            enabled = cfg.getboolean(sec, 'enabled')
-        except configparser.NoOptionError:
-            enabled = True
+                'Failed to read URL from {p!r}.'.format(p=path))
 
         config_dir, name = os.path.split(path)
         return cls(
             name, feed_url,
             config_dir, index_dir, app_content_dir, cache_dir,
-            title=title,
-            max_episodes=max_episodes,
-            enabled=enabled,
-            content_dir=content_dir,
-            filename_template=filename_template
+            title=get('title'),
+            max_episodes=get('max_episodes', default=-1, fmt='int'),
+            enabled=get('enabled', default=True, fmt='bool'),
+            content_dir=get('content_dir'),
+            filename_template=get('filename_template')
         )
 
     def _load_index(self):
