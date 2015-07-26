@@ -469,6 +469,8 @@ class Subscription(object):
         try:
             os.rmdir(old_content_dir)
         except OSError as e:
+            log.warning(('Could not delete directory {d!r}.'
+                ' Error was {e}.').format(d=old_content_dir, e=e))
             if e.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
                 raise
 
@@ -670,6 +672,7 @@ class Episode(object):
         else:
             filename = self._generate_filename(content_type, index)
             local_file = os.path.join(self.subscription.content_dir, filename)
+            local_file = unique_filename(local_file)
 
         log.info('Download from {!r}.'.format(url))
         log.info('Local file is {!r}.'.format(local_file))
@@ -678,7 +681,22 @@ class Episode(object):
         return local_file
 
     def _generate_filename(self, content_type, index):
-        '''Generate a filename for an enclosure with the given index.'''
+        '''Generate a filename for an enclosure with the given index.
+
+        The filename will be generated from ``filename_template`` and passed
+        through ``safe_filename``.
+
+        If the template does not contain a file extension, one will be added
+        automatically.
+
+        :param str content_type:
+            The content type of the enclosure.
+            Used to determine the file extension.
+        :param int index:
+            0-based index for episodes with multiple files
+        :rtype str:
+            returns the generated filename.
+        '''
         template = self.subscription.filename_template \
                    or self.subscription.app_filename_template \
                    or DEFAULT_FILENAME_TEMPLATE
@@ -710,6 +728,8 @@ class Episode(object):
         if ext_from_template in known_exts:
             filename = basename
 
+        # in case we have multiple files for an episode,
+        # add an index-suffix for every file but the first.
         if index:
             filename = '{}-{:0>2d}'.format(filename, index)
 
@@ -733,6 +753,7 @@ class Episode(object):
                 self._generate_filename(content_type, index)
             )
             if newpath != oldpath:
+                newpath = unique_filename(newpath)
                 dirname = os.path.dirname(newpath)
                 require_directory(dirname)
                 log.debug('Move {o!r} -> {n!r}'.format(o=oldpath, n=newpath))
@@ -858,6 +879,23 @@ def safe_filename(unsafe):
     safe = unsafe.replace('\\', '_')
     safe = safe.replace(':', '_')
     return safe
+
+
+def unique_filename(path, suffix=None):
+    '''Given an absolute path, check if a file with that name exists.
+    If yes, append ``suffix + counter`` to the filename until it is unique.'''
+    candidate = path
+    counter = 0
+    max_recurse = 999
+    suffix = suffix or '.'
+    while os.path.isfile(candidate):
+        if counter > max_recurse:
+            raise RuntimeError('Max recursion depth reached.')
+        name, ext = os.path.splitext(path)
+        candidate = '{n}{s}{c:0>3d}{e}'.format(n=name, s=suffix, c=counter, e=ext)
+        counter += 1
+
+    return candidate
 
 
 def download(download_url, dst_path):

@@ -19,6 +19,7 @@ import feedparser
 from podfetch import model
 from podfetch.model import Subscription
 from podfetch.model import Episode
+from podfetch.model import unique_filename
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import FeedNotFoundError
 
@@ -820,6 +821,25 @@ def test_file_extension_for_mime():
     for mime in unsupported:
         with pytest.raises(ValueError):
             model.file_extension_for_mime(mime)
+
+
+def test_unique_filename(tmpdir):
+    f = tmpdir.join('file.ext')
+    f.write('content')
+    filename = str(f)
+
+    unique0 = unique_filename(filename)
+    assert unique0 != filename
+    assert unique0.endswith('.ext')
+    assert os.path.dirname(unique0) == os.path.dirname(filename)
+
+    with open(unique0, 'w') as u0:
+        u0.write('conent')
+
+    unique1 = unique_filename(filename)
+    assert unique1 != filename
+    assert unique1 != unique0
+    assert unique1.endswith('.ext')
 
 
 def test_feeditem_no_ids(sub, monkeypatch):
