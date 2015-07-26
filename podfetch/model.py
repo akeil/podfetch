@@ -260,7 +260,7 @@ class Subscription(object):
                 else:
                     rv = cfg.get(SECTION, key)
             except (configparser.NoSectionError, configparser.NoOptionError):
-                log.info('Could not read {k!r} from ini.'.format(k=key))
+                log.debug('Could not read {k!r} from ini.'.format(k=key))
             return rv
 
         feed_url = get('url')  # mandatory property 'url'
