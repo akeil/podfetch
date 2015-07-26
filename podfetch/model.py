@@ -465,7 +465,8 @@ class Subscription(object):
         log.info('Rename downloaded episodes for {n!r}'.format(n=self.name))
         for episode in self.episodes:
             episode.move_local_files()
-        self._save_index()
+            # save for each file that was moved
+            self._save_index()
 
     # cache ------------------------------------------------------------------
 
@@ -738,7 +739,9 @@ class Episode(object):
                 self.subscription.content_dir,
                 self._generate_filename(content_type, index)
             )
-            if newpath != oldpath:
+            if not oldpath:
+                log.warning('Episode {e!r} has no local file'.format(e=self))
+            elif newpath != oldpath:
                 newpath = unique_filename(newpath)
                 dirname = os.path.dirname(newpath)
                 require_directory(dirname)
