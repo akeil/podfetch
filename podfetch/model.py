@@ -379,8 +379,6 @@ class Subscription(object):
             episode = self._episode_for_id(id_)
             if episode:
                 pass
-                # TODO
-                # episode.update_from_entry(entry)
             else:
                 episode = Episode.from_entry(self, entry)
                 self.episodes.append(episode)
