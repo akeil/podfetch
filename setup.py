@@ -16,7 +16,6 @@ if sys.argv[-1] == 'publish':
     sys.exit()
 
 readme = open('README.rst').read()
-history = open('HISTORY.rst').read().replace('.. :changelog:', '')
 
 with open('requirements.txt') as f:
     requires = [line for line in f.readlines()]
@@ -38,7 +37,7 @@ setup(
     name='podfetch',
     version=VERSION,
     description='Fetch audio podcasts and store files locally.',
-    long_description=readme + '\n\n' + history,
+    long_description=readme,
     author='Alexander Keil',
     author_email='alex@akeil.net',
     url='https://github.com/akeil/podfetch',
