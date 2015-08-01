@@ -15,9 +15,6 @@ Contents:
    installation
    usage
    cronjob
-   contributing
-   authors
-   history
 
    modules/application
 
