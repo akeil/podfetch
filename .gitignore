@@ -6,6 +6,7 @@
 # Packages
 *.egg
 *.egg-info
+.eggs/*
 dist
 build
 eggs
@@ -23,6 +24,7 @@ pip-log.txt
 
 # Unit test / coverage reports
 .coverage
+*.py,cover
 .tox
 nosetests.xml
 

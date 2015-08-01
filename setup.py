@@ -26,7 +26,7 @@ class PyTest(TestCommand):
 
     def finalize_options(self):
         TestCommand.finalize_options(self)
-        self.test_args = []
+        self.test_args = ['--cov', 'podfetch']
         self.test_suite = True
 
     def run_tests(self):
@@ -49,7 +49,7 @@ setup(
     include_package_data=True,
     install_requires=requires,
     cmdclass={'test': PyTest,},
-    tests_require=['pytest', 'mock'],
+    tests_require=['pytest', 'mock', 'pytest-cov'],
     extras_require={
         'testing': ['pytest', 'mock'],
     },
@@ -64,7 +64,6 @@ setup(
         "Programming Language :: Python :: 2",
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
     ],
