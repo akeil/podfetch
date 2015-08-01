@@ -5,6 +5,7 @@ The command line interface for Podfetch.
 '''
 import argparse
 import hashlib
+import io
 import itertools
 import logging
 import os
@@ -15,6 +16,7 @@ import tempfile
 from datetime import date
 from datetime import timedelta
 from logging import handlers
+from pkg_resources import resource_stream
 from textwrap import wrap
 
 try:
@@ -51,7 +53,6 @@ SYSTEM_CONFIG_PATH = '/etc/podfetch.conf'
 DEFAULT_USER_CONFIG_PATH = os.path.expanduser(
     '~/.config/podfetch/podfetch.conf')
 
-
 EXIT_OK = 0
 EXIT_ERROR = 1
 
@@ -73,22 +74,18 @@ def main(argv=None):
         Command line arguments.
         If *None* (the default), ``sys.argv`` is used.
     '''
-    if argv is None:
-        argv = sys.argv[1:]
-
+    options = read_config()
     parser = setup_argparser()
     setup_command_parsers(parser)
-    args = parser.parse_args(argv)
-    configure_logging(
-        verbose=args.verbose,
-        quiet=args.quiet,
-        logfile=args.logfile,
-        log_level=args.log_level,
-    )
-    cfg = read_config(extra_config_paths=[args.config,])
-    log.debug('Parsed args: {}'.format(args))
+    argv = argv or sys.argv[1:]
+    parser.parse_args(args=argv, namespace=options)
+    configure_logging(options)
+
+    log.debug('Commandline: {}'.format(' '.join(argv)))
+    log.debug('Options: {}'.format(options))
+
     try:
-        rv = run(args, cfg)
+        rv = run(options)
     except KeyboardInterrupt:
         log.info('Keyboard Interrupt.')
         raise
@@ -100,87 +97,45 @@ def main(argv=None):
         # TODO perform cleanup
         pass
 
+    rv = rv or EXIT_OK  # converts None|False -> 0
     log.debug('Exit with return code: {}.'.format(rv))
-    return rv or EXIT_OK  # converts None|False -> 0
+    return rv
 
 
-def run(args, cfg):
-    '''Run podfetch with the given command line args and config.
+def run(options):
+    '''Run podfetch with the given options.
 
-    :param object args:
-        The ``Namespace`` with parsed command line arguments.
-    :param object cfg:
-        A ``ConfigParser`` instance with values parsed from the config file(s).
+    :param object options:
+        The ``Namespace`` with parsed command line arguments
+        and config settings.
     :rtype int:
         The *Return Code* of the application-run.
     '''
-    app = _create_app(cfg)
+    app = _create_app(options)
     try:
-        func = args.func
+        func = options.func
     except AttributeError:
         raise UserError('No subcommand specified.')
-    return func(app, args)
+    return func(app, options)
 
 
-def _create_app(cfg):
+def _create_app(options):
     '''set up the application instance using the given config
 
-    :param ConfigParser cfg:
-        A ConfigParser instance containing the configuration values
+    :param Namspace options:
+        A ``Namsepace`` instance containing the configuration values
         to be used.
     :rtype object:
         An :class:`application.Podfetch` instance.
     '''
-    try:
-        config_dir = cfg.get(CFG_DEFAULT_SECTION, 'config_dir')
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        config_dir = os.path.expanduser( os.path.join(
-            '~', '.config', 'podfetch'))
-
-    try:
-        index_dir = cfg.get(CFG_DEFAULT_SECTION, 'index_dir')
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        index_dir = os.path.expanduser( os.path.join(
-            '~', '.local', 'share', 'podfetch'))
-
-    try:
-        content_dir = cfg.get(CFG_DEFAULT_SECTION, 'content_dir')
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        content_dir = os.path.expanduser( os.path.join(
-            '~', '.local', 'share', 'podfetch', 'content'))
-
-    try:
-        cache_dir = cfg.get(CFG_DEFAULT_SECTION, 'cache_dir')
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        cache_dir = os.path.expanduser( os.path.join(
-            '~', '.cache', 'podfetch'))
-
-    try:
-        filename_template = cfg.get(CFG_DEFAULT_SECTION, 'filename_template')
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        filename_template = None
-
-    update_threads = None
-    try:
-        update_threads_str = cfg.get(CFG_DEFAULT_SECTION, 'update_threads')
-        try:
-            update_threads = int(update_threads_str)
-        except (ValueError, TypeError):
-            log.warning('Ignoring invalid value {!r} for {!r}.'.format(
-                update_threads_str, 'update_threads'))
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        pass
-
-    try:
-        ignore = cfg.get(CFG_DEFAULT_SECTION, 'ignore').split()
-    except (configparser.NoOptionError, configparser.NoSectionError):
-        ignore = None
-
     return application.Podfetch(
-        config_dir, index_dir, content_dir, cache_dir,
-        filename_template=filename_template,
-        update_threads=update_threads,
-        ignore=ignore
+        options.config_dir,
+        options.index_dir,
+        options.content_dir,
+        options.cache_dir,
+        filename_template=options.filename_template,
+        update_threads=options.update_threads,
+        ignore=options.ignore
     )
 
 
@@ -221,6 +176,7 @@ def setup_argparser():
 
     parser.add_argument(
         '-l', '--logfile',
+        #type=_path,  cannot use because of 'syslog'
         help=('Write logs to the specified file. Use LOGFILE="syslog"'
             ' to write logging output to syslog.')
     )
@@ -248,20 +204,15 @@ def setup_argparser():
             ' defaults to {default}').format(default=DEFAULT_LOG_LEVEL),
     )
 
-    def path(argstr):
-        path = os.path.expanduser(argstr)
-        path = os.path.normpath(path)
-        if not os.path.isabs(path):
-            path = os.path.joion(os.getcwd(), path)
-        return path
-
-    parser.add_argument(
-        '--config',
-        type=path,
-        help='Read configuration from the specified file',
-    )
-
     return parser
+
+
+def _path(argstr):
+    path = os.path.expanduser(argstr)
+    path = os.path.normpath(path)
+    if not os.path.isabs(path):
+        path = os.path.joion(os.getcwd(), path)
+    return path
 
 
 DATE_PATTERNS = (
@@ -894,12 +845,43 @@ def _editor(app, args):
         os.unlink(tmp)
 
 
-def read_config(extra_config_paths=None, require=False):
+def _boolean(strval):
+    if strval is None:
+        return False
+    elif strval.lower() in ('1', 'y', 'yes', 'true', 'on'):
+        return True
+    elif strval.lower() in ('0', 'n', 'no', 'false', 'off'):
+        return False
+    else:
+        return bool(strval)
+
+
+def _whitespace_list(strval):
+    if strval is None:
+        return []
+    else:
+        return strval.split()
+
+
+CFG_TYPES = {
+    CFG_DEFAULT_SECTION: {
+        'verbose': _boolean,
+        'quiet': _boolean,
+        #'log_level': int,
+        'update_threads': int,
+        'config_dir': _path,
+        'index_dir': _path,
+        'content_dir': _path,
+        'cache_dir': _path,
+        'ignore': _whitespace_list,
+    }
+}
+
+
+def read_config():
     '''Read configuration from the ``DEFAULT_CONFIG_PATH and
     optionally supplied ``extra_config_paths``.
 
-    :param list extra_config_paths:
-        Additional locations to be scanned for config files.
     :param bool require:
         If *True*, raise an error if no config file was found.
         Defaults to *False*.
@@ -910,59 +892,97 @@ def read_config(extra_config_paths=None, require=False):
         ``ValueError`` is raised if ``require`` is *True*
         and if no config-file was found.
     '''
-    extra = [p for p in extra_config_paths if p]
-    paths = [SYSTEM_CONFIG_PATH, DEFAULT_USER_CONFIG_PATH,] + extra
-    # TODO remove duplicate path entries
+    root = argparse.Namespace()
     cfg = configparser.ConfigParser()
+
+    # default config from package
+    try:  # py 3.x
+        cfg.readfp(io.TextIOWrapper(
+            resource_stream('podfetch', 'default.conf'))
+        )
+    except AttributeError:
+        # py 2.x - return of resource_stream does not support `readable()`
+        #          which is required by TextIOWrapper.
+        #          Thus, read all bytes from it an wrap into BytesIO
+        cfg.readfp(io.TextIOWrapper(
+            io.BytesIO(
+                resource_stream('podfetch', 'default.conf').read()
+            )
+        ))
+
+    # system + user config from file(s)
+    paths = [SYSTEM_CONFIG_PATH, DEFAULT_USER_CONFIG_PATH,]
     read_from = cfg.read(paths)
-    if not read_from and require:
-        raise ValueError(('No configuration file found.'
-            ' Searchpath: {!r}.').format(':'.join(paths)))
 
-    log.debug('Read configuration from: {!r}.'.format(':'.join(read_from)))
-    return cfg
+    def ns(name):
+        rv = None
+        if name == CFG_DEFAULT_SECTION:
+            rv = root
+        else:
+            try:
+                rv = getattr(root, name)
+            except AttributeError:
+                rv = argparse.Namespace()
+                setattr(root, name, rv)
+        return rv
+
+    # transfer config values to namespace(s)
+    identity = lambda x: x
+    for section in cfg.sections():
+        for option in cfg.options(section):
+            value = cfg.get(section, option)
+            try:
+                conv = CFG_TYPES.get(section, {}).get(option, identity)
+                setattr(ns(section), option, conv(value))
+            except (TypeError, ValueError):
+                log.error(
+                    'Failed to coerce value for {}.{}'.format(section, option))
+
+    return root
 
 
-def configure_logging(quiet=False, verbose=False,
-    logfile=None, log_level=logging.WARNING):
+def configure_logging(options):
     '''Configure log-level and logging handlers.
 
-    :param bool quiet:
-        If *True*, do not configure a console handler.
-        Defaults to *False*.
-    :param bool verbose:
-        If *True*, set the log-level for the console handler
-        to DEBUG. Has no effect if ``quiet`` is *True*.
-        Defaults to *False*.
-    :param str logfile:
-        If given, set up a RotatingFileHandler to receive logging output.
-        Should be the absolute path to the desired logfile
-        or special value "syslog".
-        Defaults to *None* (no logfile).
-    :param int log_level:
-        Level to use for ``logfile``.
-        Must be one of the constants defined in the ``logging`` module
-        (e.g. DEBUG, INFO, ...).
-        Has no effect if ``logfile`` is not given.
+    :param Namespace options:
+        a ``Namespace`` instance with the following options:
+
+        :option bool quiet:
+            If *True*, do not configure a console handler.
+            Defaults to *False*.
+        :option bool verbose:
+            If *True*, set the log-level for the console handler
+            to DEBUG. Has no effect if ``quiet`` is *True*.
+            Defaults to *False*.
+        :option str logfile:
+            If given, set up a RotatingFileHandler to receive logging output.
+            Should be the absolute path to the desired logfile
+            or special value "syslog".
+            Defaults to *None* (no logfile).
+        :option int log_level:
+            Level to use for ``logfile``.
+            Must be one of the constants defined in the ``logging`` module
+            (e.g. DEBUG, INFO, ...).
+            Has no effect if ``logfile`` is not given.
     '''
     rootlog = logging.getLogger()
     rootlog.setLevel(logging.DEBUG)
 
-    if not quiet:
+    if not options.quiet:
         console_hdl = logging.StreamHandler()
-        console_level = logging.DEBUG if verbose else logging.INFO
+        console_level = logging.DEBUG if options.verbose else logging.INFO
         console_hdl.setLevel(console_level)
         console_hdl.setFormatter(logging.Formatter(CONSOLE_FMT))
         rootlog.addHandler(console_hdl)
 
-    if logfile:
-        if logfile == 'syslog':
+    if options.logfile:
+        if options.logfile == 'syslog':
             logfile_hdl = handlers.SysLogHandler(address='/dev/log')
             logfile_hdl.setFormatter(logging.Formatter(SYSLOG_FMT))
         else:
-            logfile_hdl = handlers.RotatingFileHandler(logfile)
+            logfile_hdl = handlers.RotatingFileHandler(options.logfile)
             logfile_hdl.setFormatter(logging.Formatter(LOGFILE_FMT))
-        logfile_hdl.setLevel(log_level)
+        logfile_hdl.setLevel(options.log_level)
         rootlog.addHandler(logfile_hdl)
 
 

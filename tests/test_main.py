@@ -114,13 +114,18 @@ def test_add_no_update(monkeypatch, mock_app):
     with_mock_app(monkeypatch, mock_app)
     url = 'http://example.com'
     name = 'new-subscription'
+    content_dir = 'my-content-dir'
     max_epis = 10
-    argv = ['add', url, '--name', name, '--max-episodes', str(max_epis),
+    argv = [
+        'add', url,
+        '--name', name,
+        '--directory', content_dir,
+        '--max-episodes', str(max_epis),
         '--no-update']
     main.main(argv=argv)
     mock_app.add_subscription.assert_called_once_with(
         url, name=name,
-        content_dir=None,
+        content_dir=content_dir,
         filename_template=None,
         max_episodes=max_epis)
     assert not mock_app.update.called
@@ -168,56 +173,14 @@ def test_purge():
 # config ---------------------------------------------------------------------
 
 
-def test_custom_config(monkeypatch):
-    monkeypatch.setattr(main, 'read_config', mock.MagicMock())
-    cfg_path = '/custom/config/file'
-    argv = ['--config', cfg_path, 'update']
-
-    main.main(argv=argv)
-
-    main.read_config.assert_called_once()
-    expected_call = call(extra_config_paths=[cfg_path])
-    assert expected_call in main.read_config.mock_calls
-
-
-def test_read_cfg(tmpdir, monkeypatch):
-    '''Assert that a custom config (partially) overrides the default.'''
-    system_wide_template = 'system-wide-template'
-    default_cache_dir = '/default/cache/dir'
-    override_content_dir = '/custom/content_dir'
-
-    # control what's in the default files
-
-    system_config_path = str(tmpdir.join('system.conf'))
-    with open(system_config_path, 'w') as f:
-        f.write('[default]\n')
-        f.write('filename_template = {}\n'.format(system_wide_template))
-        f.write('cache_dir = system-wide-cache-dir\n')
-    monkeypatch.setattr(main, 'SYSTEM_CONFIG_PATH', system_config_path)
-
-    default_config_path = str(tmpdir.join('default.conf'))
-    with open(default_config_path, 'w') as f:
-        f.write('[default]\n')
-        f.write('content_dir = default_content_dir\n')
-        f.write('cache_dir = {}\n'.format(default_cache_dir))
-    monkeypatch.setattr(main, 'DEFAULT_USER_CONFIG_PATH', default_config_path)
-
-    # the custom config, overrides _one_ setting
-    cfg_path = str(tmpdir.join('custom.conf'))
-    with open(cfg_path, 'w') as f:
-        f.write('[default]\n')
-        f.write('content_dir = {}\n'.format(override_content_dir))
-
-    cfg = main.read_config(extra_config_paths=[cfg_path])
-
-    assert cfg.get('default', 'content_dir') == override_content_dir
-    assert cfg.get('default', 'cache_dir') == default_cache_dir
-    assert cfg.get('default', 'filename_template') == system_wide_template
+# TODO write tests
 
 
 # helpers ---------------------------------------------------------------------
 
 from datetime import date, timedelta
+
+
 def test_parse_datearg():
     t = date.today()
     cases = (

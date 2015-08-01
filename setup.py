@@ -9,7 +9,7 @@ from setuptools.command.test import test as TestCommand
 
 
 # remember __init__.py
-VERSION = '0.4.8.dev1'
+VERSION = '0.4.8.dev2'
 
 if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
@@ -54,7 +54,7 @@ setup(
         'testing': ['pytest', 'mock'],
     },
     license="BSD",
-    zip_safe=False,
+    zip_safe=True,
     keywords='podfetch',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
