@@ -56,6 +56,7 @@ ContentTypeInfo = namedtuple('ContentTypeInfo', 'file_ext')
 SUPPORTED_CONTENT = {
     'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
     'audio/mp4': ContentTypeInfo(file_ext='m4a'),
+    'audio/x-m4a': ContentTypeInfo(file_ext='m4a'),
     'audio/ogg': ContentTypeInfo(file_ext='ogg'),
     'audio/flac': ContentTypeInfo(file_ext='flac'),
     'video/mpeg': ContentTypeInfo(file_ext='mp4')
@@ -465,7 +466,9 @@ class Subscription(object):
         log.info('Rename downloaded episodes for {n!r}'.format(n=self.name))
         for episode in self.episodes:
             episode.move_local_files()
-            # save for each file that was moved
+            # save for each file that was moved, so we do not lose info when
+            # an error is raised
+            # TODO: maybe better to save with `finally` ?
             self._save_index()
 
     # cache ------------------------------------------------------------------
