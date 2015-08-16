@@ -67,5 +67,11 @@ setup(
         'console_scripts': [
             'podfetch = podfetch.main:main',
         ],
+        'podfetch.events': [
+            'subscription_updated = podfetch.hooks:on_subscription_updated',
+            'updates_complete = podfetch.hooks:on_updates_complete',
+            'subscription_added = podfetch.hooks:on_subscription_added',
+            'subscription_removed = podfetch.hooks:on_subscription_removed',
+        ],
     }
 )

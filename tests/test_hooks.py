@@ -9,13 +9,18 @@ import stat
 
 import pytest
 
-from podfetch.application import HookManager
+from podfetch.hooks import _run_hooks
+from podfetch.hooks import _discover_hooks
 from podfetch.application import EVENTS
 
 
+class DummyApp:
+
+    config_dir = None
+
+
 @pytest.fixture
-def hookman(tmpdir):
-    hm = HookManager(str(tmpdir))
+def app(tmpdir):
     perms = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
     for event in EVENTS:
         hook_dir = tmpdir.mkdir(event)
@@ -36,37 +41,36 @@ def hookman(tmpdir):
         useargs.write('echo $1 $2 > {}'.format(args_marker))
         os.chmod(str(useargs), perms)
 
-    return hm
+    dummy_app = DummyApp
+    dummy_app.config_dir = str(tmpdir)
+    return dummy_app
 
 
-def test_hook_discovery(hookman):
+def test_hook_discovery(app):
     for event in EVENTS:
-        hooks = [h for h in hookman.discover_hooks(event)]
+        hooks = [h for h in _discover_hooks(app.config_dir, event)]
         assert len(hooks) == 3
 
 
-def test_hook_execution(hookman):
+def test_hook_execution(app):
     for event in EVENTS:
         marker = os.path.join(
-            os.path.dirname(hookman.hook_dirs[event]),
+            os.path.dirname(os.path.join(app.config_dir, event)),
             '{}.done'.format(event)
         )
         args_marker = os.path.join(
-            os.path.dirname(hookman.hook_dirs[event]),
+            os.path.dirname(os.path.join(app.config_dir, event)),
             '{}.used_args'.format(event)
         )
         assert not os.path.exists(marker)
         arg1 = 'arg\' {1'
         arg2 = 2
-        hookman.run_hooks(event, arg1, arg2)
+        _run_hooks(app.config_dir, event, arg1, arg2)
         assert os.path.exists(marker)
         assert os.path.exists(args_marker)
         with open(args_marker) as f:
             assert f.read().strip() == '{} {}'.format(arg1, arg2)
 
-
-def test_execute_with_args(hookman):
-    pass
 
 if __name__ == '__main__':
     import sys

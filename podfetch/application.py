@@ -29,17 +29,9 @@ Context:
 import fnmatch
 import logging
 import os
-import shlex
-import shutil
-import subprocess
-import tempfile
 import threading
 from datetime import date
-
-try:
-    from shlex import quote as shlex_quote  # python 3.x
-except ImportError:
-    from pipes import quote as shlex_quote  # python 2.x
+from pkg_resources import iter_entry_points
 
 try:
     from urllib.parse import urlparse  # python 3.x
@@ -71,6 +63,7 @@ EVENTS = (
     SUBSCRIPTION_ADDED,
     SUBSCRIPTION_REMOVED,
 )
+EP_EVENTS = 'podfetch.events'
 
 
 # application -----------------------------------------------------------------
@@ -90,8 +83,6 @@ class Podfetch(object):
         the destination directory into which downloaded files are stored.
     :var cache_dir:
         Location where helper files are stored.
-    :var HookManager hooks:
-        Delegate to run *hooks*.
     :var str filename_template:
         Template string used to generate filenames for downloaded episodes
         if no specific template is defined on the subscription level.
@@ -108,7 +99,6 @@ class Podfetch(object):
         self.filename_template = filename_template
         self.update_threads = max(1, update_threads)
         self.ignore = ignore
-        self.hooks = HookManager(config_dir)
 
         log.debug('config_dir: {!r}.'.format(self.subscriptions_dir))
         log.debug('index_dir: {!r}'.format(self.index_dir))
@@ -218,7 +208,7 @@ class Podfetch(object):
                 tasks.task_done()
 
             if initial_episode_count < len(subscription.episodes):
-                self.hooks.run_hooks(
+                self.run_hooks(
                     SUBSCRIPTION_UPDATED,
                     subscription.name,
                     subscription.content_dir
@@ -240,7 +230,7 @@ class Podfetch(object):
             work()
 
         tasks.join()
-        self.hooks.run_hooks(UPDATES_COMPLETE)
+        self.run_hooks(UPDATES_COMPLETE)
 
     def add_subscription(self, url,
         name=None, content_dir=None, max_episodes=-1, filename_template=None):
@@ -279,7 +269,7 @@ class Podfetch(object):
             filename_template=filename_template
         )
         sub.save()
-        self.hooks.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
+        self.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
         return sub
 
     def remove_subscription(self, name, delete_content=True):
@@ -304,7 +294,7 @@ class Podfetch(object):
             if e.errno != os.errno.ENOENT:
                 raise
 
-        self.hooks.run_hooks(SUBSCRIPTION_REMOVED, name, sub.content_dir)
+        self.run_hooks(SUBSCRIPTION_REMOVED, name, sub.content_dir)
 
     def _make_unique_name(self, name):
         '''Modify the given ``name`` so that we get  a name that does
@@ -413,6 +403,22 @@ class Podfetch(object):
             # we did save successfully, so the new file exists
             log.info('Delete old subscription {f!r}.'.format(f=old_filename))
             os.unlink(old_filename)
+
+    def run_hooks(self, event, *args):
+        log.debug('Run hooks for event {e!r}'.format(e=event))
+        for ep in iter_entry_points(EP_EVENTS, name=event):
+            try:
+                hook = ep.load()
+            except ImportError as e:
+                log.error('Failed to load entry point {e!r}'.format(e=ep))
+                continue
+
+            log.debug('Run hook {h!r}'.format(h=hook))
+
+            try:
+                hook(self, *args)
+            except Exception as e:
+                log.error('Failed to run hook {h!r}'.format(h=hook))
 
 
 # Filter ---------------------------------------------------------------------
@@ -543,73 +549,7 @@ class PubdateBefore(Filter):
         return '<PubdateBefore {s.until!r}>'.format(s=self)
 
 
-# Hooks ----------------------------------------------------------------------
-
-
-class HookManager(object):
-    '''Helper for :class:`Podfetch` to discover and run *hooks*
-    on specific events.
-    '''
-
-    def __init__(self, config_dir):
-        self.hook_dirs = {
-            event_name: os.path.join(config_dir, event_name)
-            for event_name in EVENTS
-        }
-
-    def run_hooks(self, event, *args):
-        log.debug('Run hooks for event {!r}.'.format(event))
-        for hook_executable in self.discover_hooks(event):
-            self._run_one_hook(event, hook_executable, *args)
-
-    def _run_one_hook(self, event, executable, *args):
-        try:
-            devnull = subprocess.DEVNULL
-        except AttributeError:  # python 2.x
-            devnull = open(os.devnull, 'w')
-
-        call_args = [shlex_quote(str(arg)) for arg in args]
-        call_args.insert(0, executable)
-        argstr = ' '.join(call_args)
-
-        exit_code = subprocess.call(argstr,
-            shell=True,
-            stdout=devnull,
-            stderr=devnull,
-        )
-
-        name = os.path.basename(executable)
-        if exit_code == 0:
-            log.debug(('Successfully ran hook {!r}'
-                ' on event {!r}.').format(name, event))
-        else:
-            log.error(('Hook {!r} exited with non-zero exit status ({})'
-                ' on event {!r}.').format(name, exit_code, event))
-
-    def discover_hooks(self, event):
-        hooks_dir = self.hook_dirs[event]
-        try:
-            hooks = os.listdir(hooks_dir)
-        except OSError as e:
-            if e.errno == os.errno.ENOENT:
-                hooks = []
-            else:
-                raise
-
-        def is_executable(path):
-            # must check if it is a _file_
-            # directories can also have an "executable" bit set
-            return os.path.isfile(path) and os.access(path, os.X_OK)
-
-        for name in hooks:
-            path = os.path.join(hooks_dir, name)
-            if is_executable(path):
-                log.debug('Found hook {!r}.'.format(name))
-                yield path
-            else:
-                log.warning((
-                    'File {!r} in hooks dir {!r} is not executable'
-                    ' and will not be run.').format(name, hooks_dir))
+# Helpers --------------------------------------------------------------------
 
 
 def name_from_url(url):
