@@ -1,7 +1,4 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-# remember setup.py
-__version__ = '0.4.9.dev1'
+from .__version__ import __version__
 __author__ = 'Alexander Keil'
 __email__ = 'alex@akeil.net'

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import os
 import sys
 
@@ -8,14 +7,11 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 
 
-# remember __init__.py
-VERSION = '0.4.9.dev1'
+with open('podfetch/__version__.py') as versionfile:
+    VERSION = versionfile.read().split('\'')[1]
 
-if sys.argv[-1] == 'publish':
-    os.system('python setup.py sdist upload')
-    sys.exit()
-
-readme = open('README.rst').read()
+with open('README.rst') as readmefile:
+    readme = readmefile.read()
 
 with open('requirements.txt') as f:
     requires = [line for line in f.readlines()]
