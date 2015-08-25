@@ -55,6 +55,7 @@ ContentTypeInfo = namedtuple('ContentTypeInfo', 'file_ext')
 
 SUPPORTED_CONTENT = {
     'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
+    'audio/x-mpeg': ContentTypeInfo(file_ext='mp3'),
     'audio/mp4': ContentTypeInfo(file_ext='m4a'),
     'audio/x-m4a': ContentTypeInfo(file_ext='m4a'),
     'audio/ogg': ContentTypeInfo(file_ext='ogg'),
