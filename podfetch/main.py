@@ -479,7 +479,7 @@ def _add(subs):
             filename_template=args.template,
         )
         if not args.no_update:
-            app.update(NameFilter(sub.name))
+            app.update(predicate=NameFilter(sub.name))
         return 0
 
     add.set_defaults(func=do_add)

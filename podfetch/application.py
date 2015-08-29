@@ -500,7 +500,7 @@ class NameFilter(Filter):
         self.name = name
 
     def __call__(self, candidate):
-        return candidate == self.name
+        return candidate.name == self.name
 
 
 class WildcardFilter(Filter):
