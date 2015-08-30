@@ -16,19 +16,19 @@ log = logging.getLogger(__name__)
 
 
 def on_subscription_updated(app, *args):
-    _run_hook(app.config_dir, 'subscription_updated', *args)
+    _run_hooks(app.config_dir, 'subscription_updated', *args)
 
 
 def on_updates_complete(app, *args):
-    _run_hook(app.config_dir, 'updates_complete', *args)
+    _run_hooks(app.config_dir, 'updates_complete', *args)
 
 
 def on_subscription_added(app, *args):
-    _run_hook(app.config_dir, 'subscription_added', *args)
+    _run_hooks(app.config_dir, 'subscription_added', *args)
 
 
 def on_subscription_removed(app, *args):
-    _run_hook(app.config_dir, 'subscription_removed', *args)
+    _run_hooks(app.config_dir, 'subscription_removed', *args)
 
 
 def _run_hooks(config_dir, event, *args):
@@ -46,6 +46,7 @@ def _run_one_hook(event, executable, *args):
     call_args.insert(0, executable)
     argstr = ' '.join(call_args)
 
+    log.debug('Run hook: {s!r}'.format(s=argstr))
     exit_code = subprocess.call(argstr,
         shell=True,
         stdout=devnull,

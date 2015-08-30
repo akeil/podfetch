@@ -92,6 +92,7 @@ class Podfetch(object):
 
     def __init__(self, config_dir, index_dir, content_dir, cache_dir,
         filename_template=None, update_threads=1, ignore=None):
+        self.config_dir = config_dir
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
         self.index_dir = index_dir
         self.content_dir = content_dir
@@ -100,7 +101,7 @@ class Podfetch(object):
         self.update_threads = max(1, update_threads)
         self.ignore = ignore
 
-        log.debug('config_dir: {!r}.'.format(self.subscriptions_dir))
+        log.debug('config_dir: {!r}.'.format(self.config_dir))
         log.debug('index_dir: {!r}'.format(self.index_dir))
         log.debug('content_dir: {!r}.'.format(self.content_dir))
         log.debug('cache_dir: {!r}.'.format(self.cache_dir))
@@ -419,6 +420,7 @@ class Podfetch(object):
                 hook(self, *args)
             except Exception as e:
                 log.error('Failed to run hook {h!r}'.format(h=hook))
+                log.debug(e, exc_info=True)
 
 
 # Filter ---------------------------------------------------------------------
