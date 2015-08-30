@@ -383,7 +383,12 @@ class Subscription(object):
                 pass
             else:
                 episode = Episode.from_entry(self, entry)
-                self.episodes.append(episode)
+                if episode.has_attachments:
+                    self.episodes.append(episode)
+                else:
+                    log.debug(('{e!r} does not have attachments'
+                        ' and is ignored.').format(e=episode))
+                    continue
 
             try:
                 episode.download(force=force)
@@ -620,6 +625,18 @@ class Episode(object):
             ],
         }
 
+    def _iter_attachments(self):
+        '''Iterate over all attachments that we accept.'''
+        files = self.files[:]
+        for item in files:
+            url, content_type, local_file = item
+            if self._should_download(content_type):
+                yield item
+
+    @property
+    def has_attachments(self):
+        return len([f for f in self._iter_attachments()]) > 0
+
     def download(self, force=False):
         '''Download all enclosures for this episode.
         Update the association (download url => local_file) in ``self.files``.
@@ -629,11 +646,10 @@ class Episode(object):
             a local file already exists (overwriting the local file).
             Defaults to *False*.
         '''
-        for index, item in enumerate(self.files[:]):
+        for index, item in enumerate(self._iter_attachments()):
             url, content_type, local_file = item
-            want = self._should_download(url, content_type)
             have = self._is_downloaded(url)
-            if (want and not have) or (want and force):
+            if not have or force:
                 local_file = self._download_one(index, url, content_type,
                     dst_file=local_file)
                 self.files[index] = (url, content_type, local_file)
@@ -648,7 +664,7 @@ class Episode(object):
                 return local_file is not None and os.path.isfile(local_file)
         return False
 
-    def _should_download(self, url, content_type):
+    def _should_download(self, content_type):
         return content_type in SUPPORTED_CONTENT
 
     def _download_one(self, index, url, content_type, dst_file=None):
