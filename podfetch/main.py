@@ -390,7 +390,7 @@ def _list(subs):
         # sort all selected episodes by date, then reduce to N items
         episodes.sort(key=lambda e: e.pubdate, reverse=True)
         if not options.all:
-            limit = args.newest or options.ls_limit
+            limit = options.newest or options.ls_limit
             if limit < 0:
                 raise ValueError(('Invalid limit {} for ls.'
                     ' Expected a positive integer').format(limit))
@@ -875,6 +875,7 @@ CFG_TYPES = {
         'content_dir': _path,
         'cache_dir': _path,
         'ignore': _whitespace_list,
+        'ls_limit': int,
     }
 }
 
