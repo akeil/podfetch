@@ -211,7 +211,7 @@ def _path(argstr):
     path = os.path.expanduser(argstr)
     path = os.path.normpath(path)
     if not os.path.isabs(path):
-        path = os.path.joion(os.getcwd(), path)
+        path = os.path.join(os.getcwd(), path)
     return path
 
 
@@ -359,25 +359,26 @@ def _list(subs):
             ' excludes the --newest option'),
     )
 
-    def do_ls(app, args):
+    def do_ls(app, options):
         out = sys.stdout
 
-        if not args.path:
+        if not options.path:
             header = 'Podfetch Episodes'
             out.write('{}\n'.format(header))
             out.write('{}\n'.format('-' * len(header)))
 
         # filter subscriptions
-        predicate = WildcardFilter(*args.patterns)
+        predicate = WildcardFilter(*options.patterns)
 
         # filter episodes
         accept = Filter()
-        if args.since:
-            args.all = True
-            accept = accept.and_is(PubdateAfter(args.since))
-        if args.until:
-            args.all = True
-            accept = accept.and_is(PubdateBefore(args.until))
+        if options.since:
+            options.all = True
+            accept = accept.and_is(PubdateAfter(options.since))
+        if options.until:
+            options.all = True
+            accept = accept.and_is(PubdateBefore(options.until))
+
         log.debug('episode filter: {a!r}'.format(a=accept))
         episodes = [
             e for e in itertools.chain(*[
@@ -388,8 +389,8 @@ def _list(subs):
 
         # sort all selected episodes by date, then reduce to N items
         episodes.sort(key=lambda e: e.pubdate, reverse=True)
-        if not args.all:
-            limit = args.newest or 15  # arbritrary default
+        if not options.all:
+            limit = args.newest or options.ls_limit
             if limit < 0:
                 raise ValueError(('Invalid limit {} for ls.'
                     ' Expected a positive integer').format(limit))
@@ -404,7 +405,7 @@ def _list(subs):
                 episode.pubdate[1],
                 episode.pubdate[2],
             )
-            if args.path:
+            if options.path:
                 for __, __, local in episode.files:
                     out.write(local)
                     out.write('\n')
