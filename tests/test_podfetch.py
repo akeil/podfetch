@@ -16,6 +16,17 @@ from podfetch.exceptions import NoSubscriptionError
 from podfetch.model import Episode, require_directory
 
 
+SUPPORTED_CONTENT = {
+    'audio/mpeg': 'mp3',
+    'audio/x-mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/ogg': 'ogg',
+    'audio/flac': 'flac',
+    'video/mpeg': 'mp4',
+}
+
+
 class DummyEntry(object):
 
     def __init__(self, **kwargs):
@@ -39,7 +50,8 @@ def app(tmpdir):
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
     app = application.Podfetch(
-        str(config_dir), str(index_dir), str(content_dir), str(cache_dir)
+        str(config_dir), str(index_dir), str(content_dir), str(cache_dir),
+        supported_content=SUPPORTED_CONTENT
     )
     os.mkdir(app.subscriptions_dir)
     return app
@@ -197,7 +209,7 @@ def test_edit_rename_files(app):
     with open(episodefile, 'w') as f:
         f.write('content')
 
-    sub.episodes.append(Episode(sub, 'id', files=[(
+    sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT, files=[(
         'url',
         'audio/mpeg',
         episodefile
@@ -230,7 +242,7 @@ def test_rename(app):
         f.write('content')
 
     sub._cache_put('etag', 'somevalue')
-    sub.episodes.append(Episode(sub, 'id', files=[(
+    sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT, files=[(
         'url',
         'audio/mpeg',
         episodefile

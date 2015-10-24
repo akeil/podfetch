@@ -50,19 +50,6 @@ from podfetch.exceptions import FeedNotFoundError
 log = logging.getLogger(__name__)
 
 
-ContentTypeInfo = namedtuple('ContentTypeInfo', 'file_ext')
-
-
-SUPPORTED_CONTENT = {
-    'audio/mpeg': ContentTypeInfo(file_ext='mp3'),
-    'audio/x-mpeg': ContentTypeInfo(file_ext='mp3'),
-    'audio/mp4': ContentTypeInfo(file_ext='m4a'),
-    'audio/x-m4a': ContentTypeInfo(file_ext='m4a'),
-    'audio/ogg': ContentTypeInfo(file_ext='ogg'),
-    'audio/flac': ContentTypeInfo(file_ext='flac'),
-    'video/mpeg': ContentTypeInfo(file_ext='mp4')
-}
-
 # for generating enclosure-filenames
 DEFAULT_FILENAME_TEMPLATE = '{pub_date}_{id}'
 
@@ -145,7 +132,8 @@ class Subscription(object):
     def __init__(self, name, feed_url,
         config_dir, index_dir, default_content_dir, cache_dir,
         title=None, max_episodes=-1, content_dir=None, enabled=True,
-        filename_template=None, app_filename_template=None):
+        filename_template=None, app_filename_template=None,
+        supported_content=None):
 
         self.name = name
         self.feed_url = feed_url
@@ -159,6 +147,7 @@ class Subscription(object):
         self.enabled = enabled
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
+        self.supported_content = supported_content
 
         self.episodes = []
         self._load_index()
@@ -217,7 +206,7 @@ class Subscription(object):
             cfg.write(fp)
 
     @classmethod
-    def from_file(cls, path, index_dir, app_content_dir, cache_dir):
+    def from_file(cls, path, index_dir, app_content_dir, cache_dir, **kwargs):
         '''Load a ``Subscription`` from its config file.
 
         :param str path:
@@ -278,7 +267,8 @@ class Subscription(object):
             max_episodes=get('max_episodes', default=-1, fmt='int'),
             enabled=get('enabled', default=True, fmt='bool'),
             content_dir=get('content_dir'),
-            filename_template=get('filename_template')
+            filename_template=get('filename_template'),
+            **kwargs
         )
 
     def _load_index(self):
@@ -291,7 +281,10 @@ class Subscription(object):
             else:
                 raise
 
-        self.episodes = [Episode.from_dict(self, d) for d in data]
+        self.episodes = [
+            Episode.from_dict(self, self.supported_content, d)
+            for d in data
+        ]
 
     def _save_index(self):
         '''Save the index file for this subscription to disk.'''
@@ -382,7 +375,8 @@ class Subscription(object):
             if episode:
                 pass
             else:
-                episode = Episode.from_entry(self, entry)
+                episode = Episode.from_entry(
+                    self, self.supported_content, entry)
                 if episode.has_attachments:
                     self.episodes.append(episode)
                 else:
@@ -531,13 +525,14 @@ class Episode(object):
     Can be an episode that was already downloaded or a fresh episode from a
     feed entry.
     '''
-    def __init__(self, parent_subscription, id_, **kwargs):
+    def __init__(self, parent_subscription, id_, supported_content, **kwargs):
         if not id_:
             raise ValueError('Invalid value for id {!r}.'.format(id_))
         self.id = id_
         if not parent_subscription:
             raise ValueError('Missing required parent_subscription.')
         self.subscription = parent_subscription
+        self.supported_content = supported_content or {}
 
         self.title = kwargs.get('title')
         self.description = kwargs.get('description')
@@ -550,7 +545,7 @@ class Episode(object):
         ]
 
     @classmethod
-    def from_entry(class_, parent_subscription, entry):
+    def from_entry(class_, parent_subscription, supported_content, entry):
         '''Create an episode from the information in a feed entry.
         :param object entry:
             The feed entry.
@@ -578,7 +573,7 @@ class Episode(object):
         else:
             pubdate = today.timetuple()
 
-        return class_(parent_subscription, id_,
+        return class_(parent_subscription, id_, supported_content,
             title=entry.title,
             description=entry.description,
             pubdate=pubdate,
@@ -589,7 +584,7 @@ class Episode(object):
         )
 
     @classmethod
-    def from_dict(class_, parent_subscription, data_dict):
+    def from_dict(class_, parent_subscription, supported_content, data_dict):
         '''Create an Episode instance from the given data.
         Data looks like this::
 
@@ -611,7 +606,7 @@ class Episode(object):
             an Episode instance.
         '''
         id_ = data_dict.get('id')
-        return class_(parent_subscription, id_, **data_dict)
+        return class_(parent_subscription, id_, supported_content, **data_dict)
 
     def as_dict(self):
         return {
@@ -665,7 +660,7 @@ class Episode(object):
         return False
 
     def _should_download(self, content_type):
-        return content_type in SUPPORTED_CONTENT
+        return content_type in self.supported_content
 
     def _download_one(self, index, url, content_type, dst_file=None):
         '''Download a single enclosure from the given URL.
@@ -708,7 +703,7 @@ class Episode(object):
                    or self.subscription.app_filename_template \
                    or DEFAULT_FILENAME_TEMPLATE
 
-        ext = file_extension_for_mime(content_type)
+        ext = self._file_extension_for_content_type(content_type)
         kind = content_type.split('/')[0]
         values = {k: pretty(v) for k, v in {
             'subscription_name': self.subscription.name,
@@ -731,7 +726,7 @@ class Episode(object):
         #  - make sure we append a file-extension
         #  - maybe insert the index between ext and basename
         basename, ext_from_template = os.path.splitext(filename)
-        known_exts = [x.file_ext for x in SUPPORTED_CONTENT.values()]
+        known_exts = [x for x in self.supported_content.values()]
         if ext_from_template in known_exts:
             filename = basename
 
@@ -775,6 +770,24 @@ class Episode(object):
                     log.warning(('Failed to rename file {f!r}.'
                         ' File does not exist.').format(f=oldpath))
 
+    def _file_extension_for_content_type(self, content_type):
+        '''Get the appropriate file extension for a given content type.
+
+        :param str content_type:
+            The content type, e.g. "audio/mpeg".
+        :rtype str:
+            The associated file extension *without* a dot ("."),
+            e.g. "mp3".
+        '''
+        try:
+            return self.supported_content[content_type.lower()]
+        except (KeyError, AttributeError):
+            raise ValueError(('Unsupported content type {c!r}.'
+                ' Supported: {s!r}').format(
+                    c=content_type,
+                    s=', '.join(self.supported_content.keys()
+                )))
+
     def __repr__(self):
         return '<Episode id={s.id!r}>'.format(s=self)
 
@@ -804,20 +817,6 @@ def id_for_entry(entry):
             entry.get('title', '')
         )
         log.debug('Missing entry-ID, using {!r} instead.'.format(entry.id))
-
-def file_extension_for_mime(mime):
-    '''Get the appropriate file extension for a given mime-type.
-
-    :param str mim:
-        The content type, e.g. "audio/mpeg".
-    :rtype str:
-        The associated file extension *without* a dot ("."),
-        e.g. "mp3".
-    '''
-    try:
-        return SUPPORTED_CONTENT[mime.lower()].file_ext
-    except (KeyError, AttributeError):
-        raise ValueError('Unsupported content type {!r}.'.format(mime))
 
 
 def pretty(unpretty):

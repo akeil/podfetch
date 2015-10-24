@@ -26,6 +26,17 @@ from podfetch.exceptions import FeedNotFoundError
 from tests import common
 
 
+SUPPORTED_CONTENT = {
+    'audio/mpeg': 'mp3',
+    'audio/x-mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/ogg': 'ogg',
+    'audio/flac': 'flac',
+    'video/mpeg': 'mp4',
+}
+
+
 @pytest.fixture
 def sub(tmpdir):
     config_dir = tmpdir.mkdir('config')
@@ -33,7 +44,9 @@ def sub(tmpdir):
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
     sub = Subscription('name', 'http://example.com',
-        str(config_dir), str(index_dir), str(content_dir), str(cache_dir))
+        str(config_dir), str(index_dir), str(content_dir), str(cache_dir),
+        supported_content=SUPPORTED_CONTENT
+    )
     return sub
 
 
@@ -219,7 +232,9 @@ def test_save(tmpdir, sub):
 def test_save_and_load_index(sub):
     '''Save the index of downloaded enclosures to disk and load it.'''
     for index in range(5):
-        sub.episodes.append(Episode(sub, 'id.{}'.format(index)))
+        sub.episodes.append(
+            Episode(sub, 'id.{}'.format(index), SUPPORTED_CONTENT)
+        )
 
     sub._save_index()
 
@@ -241,7 +256,7 @@ def test_save_index_create_directory(sub, tmpdir):
     if it does not exist.'''
     sub.index_dir = str(tmpdir.join('does-not-exist'))
     sub.name = 'name'
-    sub.episodes.append(Episode(sub, 'id'))
+    sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT))
     sub._save_index()
     assert os.path.isfile(os.path.join(sub.index_dir, 'name.json'))
 
@@ -547,7 +562,7 @@ def test_episode_download(monkeypatch, tmpdir, sub):
         ('http://example.com/4', 'text/html', None),         # reject
         ('http://example.com/5', None, None),         # reject
     ]
-    episode = Episode(sub, 'id', files=files)
+    episode = Episode(sub, 'id', SUPPORTED_CONTENT, files=files)
 
     episode.download()
     assert mock_download.call_count == 2  # 2x previously not downloaded
@@ -570,7 +585,7 @@ def test_episode_force_download(monkeypatch, tmpdir, sub):
         ('http://example.com/2', 'audio/mpeg', None),        # should download
         ('http://example.com/4', 'text/html', None),         # reject
     ]
-    episode = Episode(sub, 'id', files=files)
+    episode = Episode(sub, 'id', SUPPORTED_CONTENT, files=files)
 
     episode.download(force=True)
 
@@ -596,7 +611,7 @@ def test_content_dir_from_subscription_config(monkeypatch, sub, tmpdir):
     files = [
         ('http://example.com/1', 'audio/mpeg', None)
     ]
-    episode = Episode(sub, 'id', files=files)
+    episode = Episode(sub, 'id', SUPPORTED_CONTENT, files=files)
     episode.download()
     assert len(episode.files) > 0
     for unused, unused_also, path in episode.files:
@@ -604,7 +619,7 @@ def test_content_dir_from_subscription_config(monkeypatch, sub, tmpdir):
 
 
 def test_generate_filename_episode(sub):
-    episode = Episode(sub, 'the-id',
+    episode = Episode(sub, 'the-id', SUPPORTED_CONTENT,
         title='the-title',
         pubdate=(2001,2,3,4,5,6,0),
     )
@@ -636,7 +651,7 @@ def test_generate_filename_episode(sub):
 def test_generate_filename_pathsep(sub):
     '''Allow path separator in template, but not in template args.'''
     sub.filename_template = '{year}/{month}/{title}'
-    episode = Episode(sub, 'the-id',
+    episode = Episode(sub, 'the-id', SUPPORTED_CONTENT,
         title='the/title',
         pubdate=(2001,2,3,4,5,6,0),
     )
@@ -650,7 +665,7 @@ def test_filename_template_from_app_config(sub):
     use template from app-config'''
     sub.filename_template = ''
     sub.app_filename_template = 'app-template'
-    episode = Episode(sub, 'id')
+    episode = Episode(sub, 'id', SUPPORTED_CONTENT)
     feed = DummyFeed()
     entry = DummyEntry()
     enclosure = DummyEnclosure(type='audio/mpeg')
@@ -676,7 +691,7 @@ def test_episode_from_dict(sub):
             file2,
         ]
     }
-    episode = Episode.from_dict(sub, data)
+    episode = Episode.from_dict(sub, SUPPORTED_CONTENT, data)
     assert episode.id == 'the-id'
     assert episode.title == 'the-title'
     assert episode.description == 'the-description'
@@ -691,7 +706,7 @@ def test_episode_from_dict_minimal_data(sub):
     The dict is normally loaded from a JSON file.
     '''
     data = {'id': 'the-id'}
-    episode = Episode.from_dict(sub, data)
+    episode = Episode.from_dict(sub, SUPPORTED_CONTENT, data)
     assert episode.id == 'the-id'
     assert episode.title is None
     assert episode.description is None
@@ -702,7 +717,7 @@ def test_episode_from_dict_minimal_data(sub):
 def test_episode_from_dict_no_id_raises(sub):
     data = {'id': None}
     with pytest.raises(ValueError):
-        Episode.from_dict(sub, data)
+        Episode.from_dict(sub, SUPPORTED_CONTENT, data)
 
 
 def test_episode_from_entry(sub):
@@ -718,7 +733,7 @@ def test_episode_from_entry(sub):
         published_parsed=pubdate,
     )
 
-    episode = Episode.from_entry(sub, entry)
+    episode = Episode.from_entry(sub, SUPPORTED_CONTENT, entry)
     assert episode.id == 'the-id'
     assert episode.title == 'the-title'
     assert episode.description == 'the-description'
@@ -737,7 +752,7 @@ def test_episode_from_entry_pubdate(sub):
         published_parsed=pubdate
     )
 
-    episode = Episode.from_entry(sub, entry)
+    episode = Episode.from_entry(sub, SUPPORTED_CONTENT, entry)
     assert episode.pubdate[2] != pubdate[2]
 
 def test_episode_as_dict(sub):
@@ -745,7 +760,7 @@ def test_episode_as_dict(sub):
     file1 = ('http://example.com/1', 'audio/mpeg', 'abc')
     file2 = ('http://example.com/2', 'audio/mpeg', '123')
     episode = Episode(
-        sub, 'the-id',
+        sub, 'the-id', SUPPORTED_CONTENT,
         title='the-title',
         description='the-description',
         files=[
@@ -800,7 +815,8 @@ def test_pretty_filename():
         assert model.pretty(unpretty) == expected
 
 
-def test_file_extension_for_mime():
+def test_file_extension_for_mime(sub):
+    episode = Episode(sub, 'id', SUPPORTED_CONTENT)
     supported_cases = [
         ('audio/mpeg', 'mp3'),
         ('audio/ogg', 'ogg'),
@@ -810,7 +826,7 @@ def test_file_extension_for_mime():
         ('AUDIO/FLAC', 'flac'),
     ]
     for mime, expected in supported_cases:
-        assert model.file_extension_for_mime(mime) == expected
+        assert episode._file_extension_for_content_type(mime) == expected
 
     unsupported = [
         'image/jpeg',
@@ -820,7 +836,7 @@ def test_file_extension_for_mime():
     ]
     for mime in unsupported:
         with pytest.raises(ValueError):
-            model.file_extension_for_mime(mime)
+            episode._file_extension_for_content_type(mime)
 
 
 def test_unique_filename(tmpdir):

@@ -91,7 +91,8 @@ class Podfetch(object):
     '''
 
     def __init__(self, config_dir, index_dir, content_dir, cache_dir,
-        filename_template=None, update_threads=1, ignore=None):
+        filename_template=None, update_threads=1, ignore=None,
+        supported_content=None):
         self.config_dir = config_dir
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
         self.index_dir = index_dir
@@ -100,6 +101,7 @@ class Podfetch(object):
         self.filename_template = filename_template
         self.update_threads = max(1, update_threads)
         self.ignore = ignore
+        self.supported_content = supported_content or {}
 
         log.debug('config_dir: {!r}.'.format(self.config_dir))
         log.debug('index_dir: {!r}'.format(self.index_dir))
@@ -108,6 +110,7 @@ class Podfetch(object):
         log.debug('filename_template: {!r}.'.format(self.filename_template))
         log.debug('update_threads: {}'.format(self.update_threads))
         log.debug('ignore: {!r}'.format(self.ignore))
+        log.debug('supported_content: {}'.format(', '.join(self.supported_content.keys())))
 
     def subscription_for_name(self, name):
         '''Get the :class:`model.Subscription` with the given name.
@@ -122,8 +125,10 @@ class Podfetch(object):
         '''
         filename = os.path.join(self.subscriptions_dir, name)
         sub = Subscription.from_file(
-            filename, self.index_dir, self.content_dir, self.cache_dir)
-        sub.app_filename_template = self.filename_template
+            filename, self.index_dir, self.content_dir, self.cache_dir,
+            app_filename_template=self.filename_template,
+            supported_content=self.supported_content,
+        )
         return sub
 
     def iter_subscriptions(self, predicate=None):
@@ -255,7 +260,9 @@ class Podfetch(object):
             self.cache_dir,
             content_dir=content_dir,
             max_episodes=max_episodes,
-            filename_template=filename_template
+            filename_template=filename_template,
+            app_filename_template=self.filename_template,
+            supported_content=self.supported_content,
         )
         sub.save()
         self.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
