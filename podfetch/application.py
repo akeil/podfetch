@@ -165,16 +165,16 @@ class Podfetch(object):
             *optional* a :class:`Filter` instance.
             If given, yields only subscriptions with match the filter.
         '''
+        if predicate:
+            predicate = predicate.and_is(Enabled())
+        else:
+            predicate = Enabled()
+
         tasks = queue.Queue()
         num_tasks = 0
         for subscription in self.iter_subscriptions(predicate=predicate):
-            #TODO: use predicate instead
-            if not subscription.enabled:
-                log.warning(('Subscription {!r} is disabled'
-                ' and will not be updated.').format(subscription.name))
-            else:
-                tasks.put(subscription)
-                num_tasks += 1
+            tasks.put(subscription)
+            num_tasks += 1
 
         def work():
             done = False
@@ -537,6 +537,15 @@ class PubdateBefore(Filter):
 
     def __repr__(self):
         return '<PubdateBefore {s.until!r}>'.format(s=self)
+
+
+class Enabled(Filter):
+
+    def __call__(self, candidate):
+        return candidate.enabled
+
+    def __repr__(self):
+        return '<Enabled>'
 
 
 # Helpers --------------------------------------------------------------------
