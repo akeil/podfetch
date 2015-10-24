@@ -136,7 +136,8 @@ def _create_app(options):
         options.cache_dir,
         filename_template=options.filename_template,
         update_threads=options.update_threads,
-        ignore=options.ignore
+        ignore=options.ignore,
+        supported_content=options.content_types
     )
 
 
@@ -858,6 +859,17 @@ def _whitespace_list(strval):
         return strval.split()
 
 
+def _whitespace_dict(strval):
+    if strval is None:
+        return {}
+    else:
+        return {
+            k.strip(): v.strip() for k, v in [
+                i.split(':') for i in strval.split()
+            ]
+        }
+
+
 CFG_TYPES = {
     CFG_DEFAULT_SECTION: {
         'verbose': _boolean,
@@ -869,6 +881,7 @@ CFG_TYPES = {
         'content_dir': _path,
         'cache_dir': _path,
         'ignore': _whitespace_list,
+        'content_types': _whitespace_dict,
         'ls_limit': int,
     }
 }
