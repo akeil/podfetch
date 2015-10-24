@@ -143,7 +143,6 @@ class Podfetch(object):
         predicate = predicate or Filter()
         if self.ignore:
             predicate = predicate.and_not(WildcardFilter(*self.ignore))
-        log.debug('predicate: {p!r}'.format(p=predicate))
         for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
             for name in filenames:
                 if predicate(name):
@@ -170,16 +169,13 @@ class Podfetch(object):
             *optional* a :class:`Filter` instance.
             If given, yields only subscriptions with match the filter.
         '''
-        if predicate:
-            predicate = predicate.and_is(Enabled())
-        else:
-            predicate = Enabled()
-
+        predicate = predicate or Filter()
         tasks = queue.Queue()
         num_tasks = 0
         for subscription in self.iter_subscriptions(predicate=predicate):
-            tasks.put(subscription)
-            num_tasks += 1
+            if subscription.enabled:
+                tasks.put(subscription)
+                num_tasks += 1
 
         def work():
             done = False
@@ -545,15 +541,6 @@ class PubdateBefore(Filter):
 
     def __repr__(self):
         return '<PubdateBefore {s.until!r}>'.format(s=self)
-
-
-class Enabled(Filter):
-
-    def __call__(self, candidate):
-        return candidate.enabled
-
-    def __repr__(self):
-        return '<Enabled>'
 
 
 # Helpers --------------------------------------------------------------------
