@@ -109,23 +109,6 @@ class Podfetch(object):
         log.debug('update_threads: {}'.format(self.update_threads))
         log.debug('ignore: {!r}'.format(self.ignore))
 
-    def _load_subscription(self, name):
-        '''Load a :class:`Subscription` instance from its configuration file.
-
-        :param str name:
-            The identifier of the configuration to load.
-        :rtype Subscription:
-            The Subscription instance.
-        :raises:
-            NoSubscriptionError if no config-file for a subscription with that
-            name exists.
-        '''
-        filename = os.path.join(self.subscriptions_dir, name)
-        sub = Subscription.from_file(
-            filename, self.index_dir, self.content_dir, self.cache_dir)
-        sub.app_filename_template = self.filename_template
-        return sub
-
     def subscription_for_name(self, name):
         '''Get the :class:`model.Subscription` with the given name.
 
@@ -137,7 +120,11 @@ class Podfetch(object):
             NoSubscriptionError if no subscription with that name
             exists
         '''
-        return self._load_subscription(name)
+        filename = os.path.join(self.subscriptions_dir, name)
+        sub = Subscription.from_file(
+            filename, self.index_dir, self.content_dir, self.cache_dir)
+        sub.app_filename_template = self.filename_template
+        return sub
 
     def iter_subscriptions(self, predicate=None):
         '''Iterate over all configured subscriptions.
@@ -156,7 +143,7 @@ class Podfetch(object):
             for name in filenames:
                 if predicate(name):
                     try:
-                        yield self._load_subscription(name)
+                        yield self.subscription_for_name(name)
                     except Exception as e:  # TODO exception type
                         log.error(e)
 
@@ -181,6 +168,7 @@ class Podfetch(object):
         tasks = queue.Queue()
         num_tasks = 0
         for subscription in self.iter_subscriptions(predicate=predicate):
+            #TODO: use predicate instead
             if not subscription.enabled:
                 log.warning(('Subscription {!r} is disabled'
                 ' and will not be updated.').format(subscription.name))
@@ -328,7 +316,7 @@ class Podfetch(object):
         return deleted_files
 
     def purge_one(self, name, simulate=False):
-        subscription = self._load_subscription(name)
+        subscription = self.subscription_for_name(name)
         deleted_files = subscription.purge(simulate=simulate)
         subscription.save()
         return deleted_files
