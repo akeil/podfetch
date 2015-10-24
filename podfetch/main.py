@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
-The command line interface for Podfetch.
+Command line interface for podfetch
 '''
 import argparse
 import hashlib
@@ -73,10 +73,11 @@ def main(argv=None):
     :param list argv:
         Command line arguments.
         If *None* (the default), ``sys.argv`` is used.
+    :rtype int:
+        Returns an exit code (0=Success, 1=Error).
     '''
     options = read_config()
     parser = setup_argparser()
-    setup_command_parsers(parser)
     argv = argv or sys.argv[1:]
     parser.parse_args(args=argv, namespace=options)
     configure_logging(options)
@@ -154,7 +155,6 @@ def setup_argparser():
             author=AUTHOR, mail=AUTHOR_MAIL
         )
     )
-
     parser.add_argument(
         '--version',
         action='version',
@@ -162,19 +162,18 @@ def setup_argparser():
         help='Print version number and exit'
     )
 
-    parser.add_argument(
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
         '-v', '--verbose',
         action='store_true',
         help='Increase console output',
     )
-
-    parser.add_argument(
+    common.add_argument(
         '-q', '--quiet',
         action='store_true',
         help='Write nothing to stdout',
     )
-
-    parser.add_argument(
+    common.add_argument(
         '-l', '--logfile',
         #type=_path,  cannot use because of 'syslog'
         help=('Write logs to the specified file. Use LOGFILE="syslog"'
@@ -195,7 +194,7 @@ def setup_argparser():
             level = loglevels[values]
             setattr(namespace, self.dest, level)
 
-    parser.add_argument(
+    common.add_argument(
         '--log-level',
         action=LogLevelAction,
         default=logging.WARNING,
@@ -203,6 +202,16 @@ def setup_argparser():
         help=('Controls the log-level for LOGFILE;'
             ' defaults to {default}').format(default=DEFAULT_LOG_LEVEL),
     )
+
+    # subparsers for individual commands
+    subs = parser.add_subparsers()
+    _update(subs, common)
+    _list(subs, common)
+    _add(subs, common)
+    _edit(subs, common)
+    _show(subs, common)
+    _del(subs, common)
+    _purge(subs, common)
 
     return parser
 
@@ -255,30 +264,10 @@ def datearg(s):
         return refdate
 
 
-def setup_command_parsers(parent_parser):
-    '''Set up the sub-parsers for the "action-commands":
-      - update
-      - list
-      - add
-      - purge
-    Parsers for these commands will be added to the given ``parent_parser``.
-
-    :param ArgumentParser parent_parser:
-        The parent parser.
-    '''
-    subs = parent_parser.add_subparsers()
-    _update(subs)
-    _list(subs)
-    _add(subs)
-    _edit(subs)
-    _show(subs)
-    _del(subs)
-    _purge(subs)
-
-
-def _update(subs):
+def _update(subs, common):
     fetch = subs.add_parser(
         'update',
+        parents=[common,],
         help='Update subscriptions'
     )
 
@@ -306,9 +295,10 @@ def _update(subs):
     fetch.set_defaults(func=do_update)
 
 
-def _list(subs):
+def _list(subs, common):
     ls = subs.add_parser(
         'ls',
+        parents=[common,],
         help='List Episodes by date'
     )
 
@@ -429,9 +419,10 @@ def _list(subs):
     ls.set_defaults(func=do_ls)
 
 
-def _add(subs):
+def _add(subs, common):
     add = subs.add_parser(
         'add',
+        parents=[common,],
         help='Add a new subscription'
     )
 
@@ -486,9 +477,10 @@ def _add(subs):
     add.set_defaults(func=do_add)
 
 
-def _show(subs):
+def _show(subs, common):
     show = subs.add_parser(
         'show',
+        parents=[common,],
         help='View subscription details',
     )
     show.add_argument(
@@ -533,9 +525,10 @@ def _show(subs):
     show.set_defaults(func=do_show)
 
 
-def _del(subs):
+def _del(subs, common):
     dele = subs.add_parser(
         'del',
+        parents=[common,],
         help='Delete subscriptions',
     )
     dele.add_argument(
@@ -563,9 +556,10 @@ def _del(subs):
     dele.set_defaults(func=do_dele)
 
 
-def _purge(subs):
+def _purge(subs, common):
     purge = subs.add_parser(
         'purge',
+        parents=[common,],
         help='Remove old downloaded episodes'
     )
     purge.add_argument(
@@ -600,10 +594,10 @@ def _purge(subs):
     purge.set_defaults(func=do_purge)
 
 
-def _edit(subs):
-
+def _edit(subs, common):
     edit = subs.add_parser(
         'edit',
+        parents=[common,],
         help='Edit subscription properties'
     )
 
