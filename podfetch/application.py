@@ -394,6 +394,7 @@ class Podfetch(object):
             os.unlink(old_filename)
 
     def run_hooks(self, event, *args):
+        '''Run hooks for the given ``event``.'''
         log.debug('Run hooks for event {e!r}'.format(e=event))
         for ep in iter_entry_points(EP_EVENTS, name=event):
             try:

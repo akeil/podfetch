@@ -1,6 +1,10 @@
 #-*- coding: utf-8 -*-
 '''
-Run scripts on events
+Builtin hooks for podfetch events.
+
+This module runs scripts on events.
+If an executable file with the same name as the event is found in the
+application's config directory, it is run when the event occurs.
 '''
 import logging
 import os
@@ -13,6 +17,9 @@ except ImportError:
 
 
 log = logging.getLogger(__name__)
+
+
+# entry points for setup.py --------------------------------------------------
 
 
 def on_subscription_updated(app, *args):
@@ -29,6 +36,9 @@ def on_subscription_added(app, *args):
 
 def on_subscription_removed(app, *args):
     _run_hooks(app.config_dir, 'subscription_removed', *args)
+
+
+# implementation -------------------------------------------------------------
 
 
 def _run_hooks(config_dir, event, *args):
