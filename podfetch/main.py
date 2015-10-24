@@ -865,7 +865,7 @@ def _whitespace_dict(strval):
     else:
         return {
             k.strip(): v.strip() for k, v in [
-                i.split(':') for i in strval.split()
+                i.split() for i in strval.splitlines()
             ]
         }
 
@@ -943,9 +943,13 @@ def read_config():
             try:
                 conv = CFG_TYPES.get(section, {}).get(option, identity)
                 setattr(ns(section), option, conv(value))
-            except (TypeError, ValueError):
-                log.error(
-                    'Failed to coerce value for {}.{}'.format(section, option))
+            except (TypeError, ValueError) as e:
+                log.error('Failed to coerce value {v!r} for {s}.{o}'.format(
+                    v=value,
+                    s=section,
+                    o=option
+                ))
+                log.exception(e)
 
     return root
 
