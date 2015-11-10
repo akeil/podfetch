@@ -452,7 +452,6 @@ def _add(subs, common):
     )
     add.add_argument(
         '-d', '--directory',
-        dest='content_dir',
         help=('Download episodes to the given directory.'
             ' If omitted, the application default and a '
             ' subdirectory with the subscription name.'
@@ -467,7 +466,7 @@ def _add(subs, common):
     def do_add(app, args):
         sub = app.add_subscription(args.url,
             name=args.name,
-            content_dir=args.content_dir,
+            content_dir=args.directory,
             max_episodes=args.max_episodes,
             filename_template=args.template,
         )
