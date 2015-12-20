@@ -309,7 +309,7 @@ def test_apply_updates_max_episodes(sub, monkeypatch):
     sub.max_episodes = 1
     sub._process_feed_entry = mock.MagicMock()
     sub.update()
-    sub._process_feed_entry.assert_called_once()
+    assert sub._process_feed_entry.call_count == 1
 
 
 def test_apply_updates_error_handling(sub, monkeypatch):
