@@ -881,6 +881,4 @@ def test_feeditem_no_ids(sub, monkeypatch):
 
 if __name__ == '__main__':
     import sys
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
     sys.exit(pytest.main(__file__))
