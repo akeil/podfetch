@@ -2,3 +2,7 @@ include LICENSE
 include README.rst
 include requirements.txt
 include podfetch/default.conf
+recursive-include tests *
+prune tests/*.pyc
+prune tests/__pycache__
+include tox.ini
