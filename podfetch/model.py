@@ -31,9 +31,11 @@ from collections import namedtuple
 from datetime import datetime
 
 try:
-    import configparser  # python 3.x
+    from configparser import ConfigParser  # python 3.x
+    from configparser import Error as _ConfigParserError
 except ImportError:
-    import ConfigParser as configparser  # python 2.x
+    from ConfigParser import RawConfigParser  # python 2.x
+    from ConfigParser import Error as _ConfigParserError
 
 try:
     from urllib.request import urlretrieve  # python 3.x
@@ -184,7 +186,7 @@ class Subscription(object):
             *optional*, path to the file to save to.
             Default is ``config_dir/name``.
         '''
-        cfg = configparser.ConfigParser()
+        cfg = _ConfigParser()
         cfg.add_section(SECTION)
 
         def _set(key, value):
@@ -225,14 +227,14 @@ class Subscription(object):
         :raises:
             NoSubscriptionError if no config file exists.
         '''
-        cfg = configparser.ConfigParser()
+        cfg = _ConfigParser()
         # possible errors:
         # file does not exist
         # file is no in ini format
         # missing sections and options
         try:
             read_from = cfg.read(path)
-        except configparser.Error:
+        except _ConfigParserError:
             raise NoSubscriptionError(
                 'Failed to read subscription from {!r}.'.format(path))
         if not read_from:
@@ -250,11 +252,11 @@ class Subscription(object):
                     rv = cfg.getboolean(SECTION, key)
                 else:
                     rv = cfg.get(SECTION, key)
-            except (configparser.NoSectionError, configparser.NoOptionError):
+            except _ConfigParserError:
                 log.debug('Could not read {k!r} from ini.'.format(k=key))
             return rv
 
-        feed_url = get('url')  # mandatory property 'url'
+        feed_url = get('url')
         if not feed_url:
             raise NoSubscriptionError(
                 'Failed to read URL from {p!r}.'.format(p=path))
@@ -790,6 +792,16 @@ class Episode(object):
 
     def __repr__(self):
         return '<Episode id={s.id!r}>'.format(s=self)
+
+
+def _ConfigParser():
+    '''Create a config parser instance depending on python version.
+    important point here is not to have interpolation
+    because it conflicts eith url escapes (e.g. "%20").'''
+    try:
+        return RawConfigParser()  # py 2.x
+    except NameError:
+        return ConfigParser(interpolation=None)  # py 3.x
 
 
 def _fetch_feed(url, etag=None, modified=None):

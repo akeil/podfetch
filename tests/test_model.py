@@ -229,6 +229,29 @@ def test_save(tmpdir, sub):
     assert 'yes' in text  # from enabled=True
 
 
+def test_url_escape(tmpdir):
+    '''url encodes character (e.g. "%20") conflict with ConfigParser's interpolation
+    syntax.'''
+    config_dir = str(tmpdir.mkdir('config'))
+    index_dir = str(tmpdir.mkdir('index'))
+    content_dir = str(tmpdir.mkdir('content_dir'))
+    cache_dir = str(tmpdir.mkdir('cache_dir'))
+
+    url = 'http://example.com/foo%20bar'
+    sub = Subscription('name', url,
+        config_dir, index_dir, content_dir, cache_dir,
+        supported_content=SUPPORTED_CONTENT
+    )
+    assert sub.feed_url == url  # url unchanged, as set
+
+    sub.save()  # should not fail
+
+    filename = os.path.join(sub.config_dir, sub.name)
+    reloaded = Subscription.from_file(filename, index_dir, content_dir, cache_dir)
+    assert reloaded.feed_url == url
+
+
+
 def test_save_and_load_index(sub):
     '''Save the index of downloaded enclosures to disk and load it.'''
     for index in range(5):
