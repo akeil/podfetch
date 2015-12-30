@@ -1,7 +1,0 @@
-{
-  "tests/test_main.py::test_forced_update": true,
-  "tests/test_main.py::test_update": true,
-  "tests/test_main.py::test_update_many": true,
-  "tests/test_main.py::test_update_one": true,
-  "tests/test_model.py::test_apply_updates_max_episodes": true
-}
