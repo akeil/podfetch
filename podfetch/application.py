@@ -164,7 +164,8 @@ class Podfetch(object):
             *optional*,
             force update, ignore HTTP etag and not modified in feed.
             Re-download all episodes.
-            Default is *True*.
+            Also update *disabled* subscriptions.
+            Default is *False*.
         :param Filter predicate:
             *optional* a :class:`Filter` instance.
             If given, yields only subscriptions with match the filter.
@@ -173,7 +174,7 @@ class Podfetch(object):
         tasks = queue.Queue()
         num_tasks = 0
         for subscription in self.iter_subscriptions(predicate=predicate):
-            if subscription.enabled:
+            if subscription.enabled or force:
                 tasks.put(subscription)
                 num_tasks += 1
 
