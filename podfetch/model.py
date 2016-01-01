@@ -365,7 +365,7 @@ class Subscription(object):
         try:
             self._update_entries(feed, force=force)
         finally:
-            self._save_index()
+            self._save_index()  # TODO redundant?
         # store etag, modified after *successful* update
         self._cache_put(CACHE_ETAG, feed.get('etag'))
         self._cache_put(CACHE_MODIFIED, feed.get('modified'))
@@ -388,6 +388,7 @@ class Subscription(object):
 
             try:
                 episode.download(force=force)
+                self._save_index()
             except Exception as e:
                 log.error(('Failed to update episode {epi}.'
                     ' Error was {e!r}').format(epi=episode, e=e))
