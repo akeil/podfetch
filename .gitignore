@@ -1,4 +1,5 @@
 *.py[cod]
+*.py_
 
 # C extensions
 *.so
@@ -40,6 +41,7 @@ nosetests.xml
 todo
 release.py
 *.bak
+tools/*
 
 # Complexity
 output/*.html

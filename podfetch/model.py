@@ -27,8 +27,12 @@ import os
 import re
 import shutil
 import stat
-from collections import namedtuple
 from datetime import datetime
+
+try:
+    from urllib.request import urlretrieve  # python 3.x
+except ImportError:
+    from urllib import urlretrieve  # python 2.x
 
 try:
     from configparser import ConfigParser  # python 3.x
@@ -37,16 +41,12 @@ except ImportError:
     from ConfigParser import RawConfigParser  # python 2.x
     from ConfigParser import Error as _ConfigParserError
 
-try:
-    from urllib.request import urlretrieve  # python 3.x
-except ImportError:
-    from urllib import urlretrieve  # python 2.x
-
 import feedparser
 
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import FeedGoneError
 from podfetch.exceptions import FeedNotFoundError
+from podfetch.timehelper import UTC
 
 
 log = logging.getLogger(__name__)
@@ -62,29 +62,6 @@ SECTION = 'subscription'
 CACHE_ETAG = 'etag'
 CACHE_MODIFIED = 'modified'
 CACHE_ALL = [CACHE_ETAG, CACHE_MODIFIED,]
-
-
-try:  # py 3.x
-    from datetime import timezone
-    UTC = timezone.utc
-except ImportError:  # py 2.x
-    from datetime import tzinfo
-    from datetime import timedelta
-
-    _ZERO = timedelta(0)
-
-    class _UTC(tzinfo):
-
-        def utcoffset(self, dt):
-            return _ZERO
-
-        def tzname(self, dt):
-            return 'UTC'
-
-        def dst(self, dt):
-            return _ZERO
-
-    UTC = _UTC()
 
 
 class Subscription(object):
@@ -132,10 +109,10 @@ class Subscription(object):
     '''
 
     def __init__(self, name, feed_url,
-        config_dir, index_dir, default_content_dir, cache_dir,
-        title=None, max_episodes=-1, content_dir=None, enabled=True,
-        filename_template=None, app_filename_template=None,
-        supported_content=None):
+                 config_dir, index_dir, default_content_dir, cache_dir,
+                 title=None, max_episodes=-1, content_dir=None, enabled=True,
+                 filename_template=None, app_filename_template=None,
+                 supported_content=None):
 
         self.name = name
         self.feed_url = feed_url
@@ -163,10 +140,8 @@ class Subscription(object):
           named after this subscription
         - or an indivdually defined directory for this subscription only
         '''
-        return self._content_dir or os.path.join(
-            self._default_content_dir,
-            self.name
-        )
+        return self._content_dir or os.path.join(self._default_content_dir,
+                                                 self.name)
 
     @content_dir.setter
     def content_dir(self, dirname):
@@ -186,12 +161,12 @@ class Subscription(object):
             *optional*, path to the file to save to.
             Default is ``config_dir/name``.
         '''
-        cfg = _ConfigParser()
+        cfg = _mk_config_parser()
         cfg.add_section(SECTION)
 
         def _set(key, value):
             if value:  # will lose max_episodes = 0
-                cfg.set(SECTION, key ,value)
+                cfg.set(SECTION, key, value)
 
         _set('url', self.feed_url)
         _set('max_episodes', str(self.max_episodes))
@@ -201,8 +176,8 @@ class Subscription(object):
         _set('content_dir', self._content_dir)
 
         filename = path or os.path.join(self.config_dir, self.name)
-        log.debug(
-            'Save Subscription {!r} to {!r}.'.format(self.name, filename))
+        log.debug('Save Subscription {!r} to {!r}.'.format(self.name,
+                                                           filename))
         require_directory(os.path.dirname(filename))
         with open(filename, 'w') as fp:
             cfg.write(fp)
@@ -227,7 +202,7 @@ class Subscription(object):
         :raises:
             NoSubscriptionError if no config file exists.
         '''
-        cfg = _ConfigParser()
+        cfg = _mk_config_parser()
         # possible errors:
         # file does not exist
         # file is no in ini format
@@ -235,31 +210,31 @@ class Subscription(object):
         try:
             read_from = cfg.read(path)
         except _ConfigParserError:
-            raise NoSubscriptionError(
-                'Failed to read subscription from {!r}.'.format(path))
+            raise NoSubscriptionError(('Failed to read subscription from'
+                                       ' {!r}.').format(path))
         if not read_from:
-            raise NoSubscriptionError(
-                'No config file exists at {!r}.'.format(path))
+            raise NoSubscriptionError(('No config file exists at'
+                                       ' {!r}.').format(path))
 
         log.debug('Read subscription from {!r}.'.format(path))
 
         def get(key, default=None, fmt=None):
-            rv = default
+            result = default
             try:
                 if fmt == 'int':
-                    rv = cfg.getint(SECTION, key)
+                    result = cfg.getint(SECTION, key)
                 elif fmt == 'bool':
-                    rv = cfg.getboolean(SECTION, key)
+                    result = cfg.getboolean(SECTION, key)
                 else:
-                    rv = cfg.get(SECTION, key)
+                    result = cfg.get(SECTION, key)
             except _ConfigParserError:
                 log.debug('Could not read {k!r} from ini.'.format(k=key))
-            return rv
+            return result
 
         feed_url = get('url')
         if not feed_url:
-            raise NoSubscriptionError(
-                'Failed to read URL from {p!r}.'.format(p=path))
+            raise NoSubscriptionError(('Failed to read URL from'
+                                       ' {p!r}.').format(p=path))
 
         config_dir, name = os.path.split(path)
         return cls(
@@ -275,10 +250,10 @@ class Subscription(object):
 
     def _load_index(self):
         try:
-            with open(self.index_file) as f:
-                data = json.load(f)
-        except IOError as e:
-            if e.errno == os.errno.ENOENT:
+            with open(self.index_file) as src:
+                data = json.load(src)
+        except IOError as err:
+            if err.errno == os.errno.ENOENT:
                 data = []
             else:
                 raise
@@ -293,8 +268,8 @@ class Subscription(object):
         data = [e.as_dict() for e in self.episodes]
         if data:
             require_directory(os.path.dirname(self.index_file))
-            with open(self.index_file, 'w') as f:
-                json.dump(data, f)
+            with open(self.index_file, 'w') as dst:
+                json.dump(data, dst)
         else:
             delete_if_exists(self.index_file)
 
@@ -316,13 +291,12 @@ class Subscription(object):
                 episode.delete_local_files()
             try:
                 os.rmdir(self.content_dir)
-            except os.error as e:
-                if e.errno == os.errno.ENOENT:
+            except os.error as err:
+                if err.errno == os.errno.ENOENT:
                     pass
-                elif e.errno == os.errno.ENOTEMPTY:
+                elif err.errno == os.errno.ENOTEMPTY:
                     log.warning(('Directory {!r} was not removed because it'
-                        ' is not empty.').format(self.content_dir))
-                    pass
+                                 ' is not empty.').format(self.content_dir))
                 else:
                     raise
 
@@ -383,15 +357,15 @@ class Subscription(object):
                     self.episodes.append(episode)
                 else:
                     log.debug(('{e!r} does not have attachments'
-                        ' and is ignored.').format(e=episode))
+                               ' and is ignored.').format(e=episode))
                     continue
 
             try:
                 episode.download(force=force)
                 self._save_index()
-            except Exception as e:
+            except Exception as err:
                 log.error(('Failed to update episode {epi}.'
-                    ' Error was {e!r}').format(epi=episode, e=e))
+                           ' Error was {err!r}').format(epi=episode, err=err))
 
     def _episode_for_id(self, id_):
         for episode in self.episodes:
@@ -415,8 +389,8 @@ class Subscription(object):
         keep = max(self.max_episodes, 0)  # -1 to 0
         selected = episodes[:-keep]
 
-        log.info('Purge {!r}, select {} episodes to delete ({} to keep)'.format(
-            self, len(selected), keep))
+        log.info(('Purge {!r}, select {} episodes to delete'
+                  ' ({} to keep)').format(self, len(selected), keep))
 
         deleted_files = []
         for episode in selected:
@@ -428,8 +402,15 @@ class Subscription(object):
         return deleted_files
 
     def rename(self, newname, move_files=False):
-        log.info('Rename subscription {o!r} -> {n!r}.'.format(
-            o=self.name, n=newname))
+        '''Rename this subscription.
+
+        This will *always* rename files for internal use
+        (e.g. inside the *cache_dir*).
+        It will *optionally* rename downloaded episodes, moving them to
+        a different *content_dir*.
+        '''
+        log.info('Rename subscription {o!r} -> {n!r}.'.format(o=self.name,
+                                                              n=newname))
 
         log.info('Forget cache entries.')
         cached = {}
@@ -458,10 +439,10 @@ class Subscription(object):
 
         try:
             os.rmdir(old_content_dir)
-        except OSError as e:
+        except OSError as err:
             log.warning(('Could not delete directory {d!r}.'
-                ' Error was {e}.').format(d=old_content_dir, e=e))
-            if e.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
+                         ' Error was {e}.').format(d=old_content_dir, e=err))
+            if err.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
                 raise
 
     def rename_files(self):
@@ -479,10 +460,10 @@ class Subscription(object):
     def _cache_get(self, key):
         result = None
         try:
-            with open(self._cache_path(key)) as f:
-                result = f.read()
-        except IOError as e:
-            if e.errno != os.errno.ENOENT:
+            with open(self._cache_path(key)) as cachefile:
+                result = cachefile.read()
+        except IOError as err:
+            if err.errno != os.errno.ENOENT:
                 raise
 
         return result or None  # convert '' to None
@@ -493,10 +474,10 @@ class Subscription(object):
         if not forget:
             try:
                 require_directory(os.path.dirname(path))
-                with open(path, 'w') as f:
-                    f.write(value)
-            except Error as e:
-                log.error('Error writing cache file: {!r}'.format(e))
+                with open(path, 'w') as cachefile:
+                    cachefile.write(value)
+            except Exception as err:
+                log.error('Error writing cache file: {!r}'.format(err))
                 forget = True
 
         # value was empty or writing failed
@@ -509,9 +490,9 @@ class Subscription(object):
         for key in keys or CACHE_ALL:
             try:
                 delete_if_exists(self._cache_path(key))
-            except Exception as e:
-                log.error('Failed to delete cache {!r} ofr {!r}.'.format(
-                    key, self.name))
+            except Exception:
+                log.error(('Failed to delete cache {!r} of'
+                           ' {!r}.').format(key, self.name))
 
     def _cache_path(self, key):
         return os.path.join(self.cache_dir, '{}.{}'.format(self.name, key))
@@ -531,9 +512,11 @@ class Episode(object):
     def __init__(self, parent_subscription, id_, supported_content, **kwargs):
         if not id_:
             raise ValueError('Invalid value for id {!r}.'.format(id_))
-        self.id = id_
+
         if not parent_subscription:
             raise ValueError('Missing required parent_subscription.')
+
+        self.id = id_
         self.subscription = parent_subscription
         self.supported_content = supported_content or {}
 
@@ -541,14 +524,12 @@ class Episode(object):
         self.description = kwargs.get('description')
         today = datetime.now(UTC).timetuple()
         self.pubdate = kwargs.get('pubdate', today)
-        self.files = [
-            (url, content_type, local)
-            for url, content_type, local
-            in kwargs.get('files', [])
-        ]
+        self.files = [(url, content_type, local)
+                      for url, content_type, local
+                      in kwargs.get('files', [])]
 
     @classmethod
-    def from_entry(class_, parent_subscription, supported_content, entry):
+    def from_entry(cls, parent_subscription, supported_content, entry):
         '''Create an episode from the information in a feed entry.
         :param object entry:
             The feed entry.
@@ -561,33 +542,29 @@ class Episode(object):
         today = datetime.now(UTC)
         pubdate = entry.published_parsed
         if pubdate:
-            fromentry = datetime(
-                pubdate[0],  # year
-                pubdate[1],  # month
-                pubdate[2],  # day
-                pubdate[3],  # hour
-                pubdate[4],  # minute
-                pubdate[5],  # second
-                tzinfo=UTC
-            )
+            fromentry = datetime(pubdate[0],  # year
+                                 pubdate[1],  # month
+                                 pubdate[2],  # day
+                                 pubdate[3],  # hour
+                                 pubdate[4],  # minute
+                                 pubdate[5],  # second
+                                 tzinfo=UTC)
 
             if fromentry > today:
                 pubdate = today.timetuple()
         else:
             pubdate = today.timetuple()
 
-        return class_(parent_subscription, id_, supported_content,
-            title=entry.title,
-            description=entry.description,
-            pubdate=pubdate,
-            files=[
-                (enc.href, enc.type, None)
-                for enc in entry.get('enclosures', [])
-            ],
-        )
+        return cls(parent_subscription, id_, supported_content,
+                   title=entry.title,
+                   description=entry.description,
+                   pubdate=pubdate,
+                   files=[(enc.href, enc.type, None)
+                          for enc
+                          in entry.get('enclosures', [])])
 
     @classmethod
-    def from_dict(class_, parent_subscription, supported_content, data_dict):
+    def from_dict(cls, parent_subscription, supported_content, data_dict):
         '''Create an Episode instance from the given data.
         Data looks like this::
 
@@ -609,9 +586,12 @@ class Episode(object):
             an Episode instance.
         '''
         id_ = data_dict.get('id')
-        return class_(parent_subscription, id_, supported_content, **data_dict)
+        return cls(parent_subscription, id_, supported_content, **data_dict)
 
     def as_dict(self):
+        '''Return this Episode's details as a *dict*
+        with JSON serializable data.
+        '''
         return {
             'id': self.id,
             'title': self.title,
@@ -627,7 +607,7 @@ class Episode(object):
         '''Iterate over all attachments that we accept.'''
         files = self.files[:]
         for item in files:
-            url, content_type, local_file = item
+            content_type = item[1]
             if self._should_download(content_type):
                 yield item
 
@@ -649,7 +629,7 @@ class Episode(object):
             have = self._is_downloaded(url)
             if not have or force:
                 local_file = self._download_one(index, url, content_type,
-                    dst_file=local_file)
+                                                dst_file=local_file)
                 self.files[index] = (url, content_type, local_file)
             else:
                 log.debug('Skip {!r}.'.format(url))
@@ -657,7 +637,7 @@ class Episode(object):
     def _is_downloaded(self, url):
         '''Tell if the enclosure for the given URL has been downloaded.
         Specifically, if the local file associated with the URL exists.'''
-        for existing_url, __, local_file in self.files:
+        for existing_url, unused, local_file in self.files:
             if url == existing_url:
                 return local_file is not None and os.path.isfile(local_file)
         return False
@@ -706,7 +686,7 @@ class Episode(object):
                    or self.subscription.app_filename_template \
                    or DEFAULT_FILENAME_TEMPLATE
 
-        ext = self._file_extension_for_content_type(content_type)
+        ext = self._file_extension_for_mime(content_type)
         kind = content_type.split('/')[0]
         values = {k: pretty(v) for k, v in {
             'subscription_name': self.subscription.name,
@@ -744,19 +724,22 @@ class Episode(object):
     def delete_local_files(self):
         '''Delete the local files for this episode (if they exist).'''
         while self.files:
-            __, __, local_file = self.files.pop()
+            unused, unused_also, local_file = self.files.pop()
             delete_if_exists(local_file)
 
         # TODO remove empty directories
 
     def move_local_files(self):
+        '''Re-apply the filename template for this Episode's downloaded
+        files and rename files.
+
+        Useful if the filename pattern changes.
+        '''
         files = self.files[:]
         for index, details in enumerate(files):
             url, content_type, oldpath = details
-            newpath = os.path.join(
-                self.subscription.content_dir,
-                self._generate_filename(content_type, index)
-            )
+            newpath = os.path.join(self.subscription.content_dir,
+                                   self._generate_filename(content_type, index))
             if not oldpath:
                 log.warning('Episode {e!r} has no local file'.format(e=self))
             elif newpath != oldpath:
@@ -767,13 +750,13 @@ class Episode(object):
                 try:
                     shutil.move(oldpath, newpath)
                     self.files[index] = (url, content_type, newpath)
-                except OSError as e:
-                    if e.errno != os.errno.ENOENT:
+                except OSError as err:
+                    if err.errno != os.errno.ENOENT:
                         raise
                     log.warning(('Failed to rename file {f!r}.'
-                        ' File does not exist.').format(f=oldpath))
+                                 ' File does not exist.').format(f=oldpath))
 
-    def _file_extension_for_content_type(self, content_type):
+    def _file_extension_for_mime(self, content_type):
         '''Get the appropriate file extension for a given content type.
 
         :param str content_type:
@@ -785,20 +768,21 @@ class Episode(object):
         try:
             return self.supported_content[content_type.lower()]
         except (KeyError, AttributeError):
-            raise ValueError(('Unsupported content type {c!r}.'
-                ' Supported: {s!r}').format(
-                    c=content_type,
-                    s=', '.join(self.supported_content.keys()
-                )))
+            supported = ', '.join(self.supported_content.keys())
+            message = ('Unsupported content type {c!r}.'
+                       ' Supported: {s!r}').format(c=content_type,
+                                                   s=supported)
+            raise ValueError(message)
 
     def __repr__(self):
         return '<Episode id={s.id!r}>'.format(s=self)
 
 
-def _ConfigParser():
+def _mk_config_parser():
     '''Create a config parser instance depending on python version.
     important point here is not to have interpolation
-    because it conflicts eith url escapes (e.g. "%20").'''
+    because it conflicts with url escapes (e.g. "%20").
+    '''
     try:
         return RawConfigParser()  # py 2.x
     except NameError:
@@ -810,26 +794,28 @@ def _fetch_feed(url, etag=None, modified=None):
     feed = feedparser.parse(url, etag=etag, modified=modified)
 
     if feed.status == 410:  # HTTP Gone
-        raise FeedGoneError(
-            'Request for URL {!r} returned HTTP 410.'.format(url))
+        raise FeedGoneError(('Request for URL {!r} returned'
+                             ' HTTP 410.').format(url))
     elif feed.status == 404:  # HTTP Not Found
-        raise FeedNotFoundError(
-            'Request for URL {!r} returned HTTP 404.'.format(url))
+        raise FeedNotFoundError(('Request for URL {!r} returned'
+                                 ' HTTP 404.').format(url))
     # TODO AuthenticationFailure
     # TODO Connection error, Timeouts
     return feed
 
 
 def id_for_entry(entry):
+    '''Determine the ID for e feed entry.
+
+    This is preferably the ID defined for the entry.
+    If that is missing, use the publication date and title.
+    '''
     entry_id = entry.get('id')
     if entry_id:
         return entry_id
     else:
-        return '{}.{}'.format(
-            ''.join(str(x) for x in entry.published_parsed),
-            entry.get('title', '')
-        )
-        log.debug('Missing entry-ID, using {!r} instead.'.format(entry.id))
+        return '{}.{}'.format(''.join(str(x) for x in entry.published_parsed),
+                              entry.get('title', ''))
 
 
 def pretty(unpretty):
@@ -850,7 +836,7 @@ def pretty(unpretty):
     if unpretty is None:
         return None
 
-    rv = str(unpretty)
+    result = str(unpretty)
 
     translations = [
         (' ', '_'),
@@ -873,21 +859,21 @@ def pretty(unpretty):
     deletions = ['*', '?', '!', '"', '\'', '^', '\\', '´', '`', '<', '>']
 
     for text, replacement in itertools.chain(translations, [(c, '') for c in deletions]):
-        rv = rv.replace(text, replacement)
+        result = result.replace(text, replacement)
 
     # delete non-ascii chars and whitespace
     import string
     allowed_chars = string.ascii_letters + string.digits + string.punctuation
-    rv = ''.join(c for c in rv if c in allowed_chars)
+    result = ''.join(c for c in result if c in allowed_chars)
 
     # replace multiple occurence of separators with one separator
     # "---" becomes "-"
     separators = ['-', '_', '.']
     for sep in separators:
         pattern = '[{}]+'.format(sep)
-        rv = re.sub(pattern, sep, rv)
+        result = re.sub(pattern, sep, result)
 
-    return rv
+    return result
 
 
 def safe_filename(unsafe):
@@ -928,7 +914,7 @@ def download(download_url, dst_path):
         The parent directory of the destination file
         *must* exist.
     '''
-    tempdst, headers = urlretrieve(download_url)
+    tempdst, unused = urlretrieve(download_url)
     log.debug('Downloaded to tempdst: {!r}.'.format(tempdst))
     try:
         shutil.move(tempdst, dst_path)
@@ -943,8 +929,8 @@ def require_directory(dirname):
     '''Create the given directory if it does not exist.'''
     try:
         os.makedirs(dirname)
-    except os.error as e:
-        if e.errno != os.errno.EEXIST:
+    except os.error as err:
+        if err.errno != os.errno.EEXIST:
             raise
 
 
@@ -952,6 +938,6 @@ def delete_if_exists(filename):
     '''Delete the given filename (absolute path) if it exists.'''
     try:
         os.unlink(filename)
-    except os.error as e:
-        if e.errno != os.errno.ENOENT:
+    except os.error as err:
+        if err.errno != os.errno.ENOENT:
             raise
