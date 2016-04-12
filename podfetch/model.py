@@ -791,7 +791,20 @@ def _mk_config_parser():
 
 def _fetch_feed(url, etag=None, modified=None):
     '''Download an parse a RSS feed.'''
-    feed = feedparser.parse(url, etag=etag, modified=modified)
+    # see:
+    # https://github.com/kurtmckee/feedparser/issues/30
+    #
+    try:
+        feed = feedparser.parse(url, etag=etag, modified=modified)
+    except TypeError as err:
+        try:
+            feedparser.PREFERRED_XML_PARSERS.remove('drv_libxml2')
+        except ValueError:
+            # not in the list
+            raise err
+        else:
+            feed = feedparser.parse(url, etag=etag, modified=modified)
+
 
     if feed.status == 410:  # HTTP Gone
         raise FeedGoneError(('Request for URL {!r} returned'

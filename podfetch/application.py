@@ -192,9 +192,10 @@ class Podfetch(object):
             initial_episode_count = len(subscription.episodes)
             try:
                 subscription.update(force=force)
-            except Exception as e:
+            except Exception as err:
                 log.error(('Failed to fetch feed {n!r}. Error was:'
-                    ' {e}').format(n=subscription.name, e=e))
+                    ' {e}').format(n=subscription.name, e=err))
+                log.debug(err, exc_info=True)
             finally:
                 tasks.task_done()
 
