@@ -8,7 +8,7 @@ pkgdesk=Command line client for fetching and managing podcasts
 arch=('any')
 depends=('python' 'python-feedparser')
 license=('GPL')
-url=("http://akeil.net")
+url=http://akeil.net
 source=("http://akeil.net/code/${_pkgname}-${pkgver}.tar.gz")
 sha256sums=('%%sha256sum%%')
 
