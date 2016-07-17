@@ -336,15 +336,25 @@ class Subscription(object):
             self.feed_url = feed.href
             self.save()
 
+        entries_ok = True
         try:
-            self._update_entries(feed, force=force)
+            entries_ok = self._update_entries(feed, force=force)
         finally:
             self._save_index()  # TODO redundant?
+            entries_ok = False
+
         # store etag, modified after *successful* update
-        self._cache_put(CACHE_ETAG, feed.get('etag'))
-        self._cache_put(CACHE_MODIFIED, feed.get('modified'))
+        if entries_ok:
+            self._cache_put(CACHE_ETAG, feed.get('etag'))
+            self._cache_put(CACHE_MODIFIED, feed.get('modified'))
 
     def _update_entries(self, feed, force=False):
+        '''Download content for all feed entries.
+
+        Returns *True* if all downloads were successful,
+        *False* if one or more downloads failed.
+        '''
+        has_errors = False
         for entry in feed.get('entries', []):
             id_ = id_for_entry(entry)
             episode = self._episode_for_id(id_)
@@ -364,8 +374,11 @@ class Subscription(object):
                 episode.download(force=force)
                 self._save_index()
             except Exception as err:
+                has_errors = True
                 log.error(('Failed to update episode {epi}.'
                            ' Error was {err!r}').format(epi=episode, err=err))
+
+            return not has_errors
 
     def _episode_for_id(self, id_):
         for episode in self.episodes:
@@ -818,7 +831,7 @@ def _fetch_feed(url, etag=None, modified=None):
 
 
 def id_for_entry(entry):
-    '''Determine the ID for e feed entry.
+    '''Determine the ID for a feed entry.
 
     This is preferably the ID defined for the entry.
     If that is missing, use the publication date and title.
