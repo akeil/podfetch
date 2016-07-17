@@ -27,12 +27,9 @@ import os
 import re
 import shutil
 import stat
+import tempfile
+from contextlib import closing
 from datetime import datetime
-
-try:
-    from urllib.request import urlretrieve  # python 3.x
-except ImportError:
-    from urllib import urlretrieve  # python 2.x
 
 try:
     from configparser import ConfigParser  # python 3.x
@@ -42,6 +39,7 @@ except ImportError:
     from ConfigParser import Error as _ConfigParserError
 
 import feedparser
+import requests
 
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import FeedGoneError
@@ -940,7 +938,14 @@ def download(download_url, dst_path):
         The parent directory of the destination file
         *must* exist.
     '''
-    tempdst, unused = urlretrieve(download_url)
+    with closing(requests.get(download_url, stream=True)) as r:
+        r.raise_for_status()
+        unused, tempdst = tempfile.mkstemp()
+        with open(tempdst, 'wb') as f:
+            chunk_size = 1024
+            for chunk in r.iter_content(chunk_size):
+                f.write(chunk)
+
     log.debug('Downloaded to tempdst: {!r}.'.format(tempdst))
     try:
         shutil.move(tempdst, dst_path)
