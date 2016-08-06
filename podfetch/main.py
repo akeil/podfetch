@@ -564,7 +564,7 @@ def _purge(subs, common):
     )
     purge.add_argument(
         'subscription_name',
-        nargs='?',
+        nargs='*',
         help=('The names of the subscriptions for which old files'
             ' should be removed. If no name is given, all subscriptions'
             ' are purged.'),
@@ -582,7 +582,7 @@ def _purge(subs, common):
         else:
             for name in args.subscription_name:
                 result += app.purge_one(
-                    subscription.name, simulate=args.simulate
+                    name, simulate=args.simulate
                 )
 
         log.info('Purged {} files...'.format(len(result)))
