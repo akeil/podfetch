@@ -404,13 +404,47 @@ class Subscription(object):
                   ' ({} to keep)').format(self, len(selected), keep))
 
         deleted_files = []
-        for episode in selected:
-            deleted_files += [filename for __, __, filename in episode.files]
+        try:
+            for episode in selected:
+                deleted_files += [filename for __, __, filename in episode.files]
+                if not simulate:
+                    episode.delete_local_files()
+                    self.episodes.remove(episode)
+        finally:
             if not simulate:
-                episode.delete_local_files()
-                self.episodes.remove(episode)
+                self._save_index()
+
+        if not simulate:
+            self._remove_empty_directories()
 
         return deleted_files
+
+    def _remove_empty_directories(self):
+        '''Remove directories from this subscription's content dir
+        if they are empty.'''
+        # list all empty directories below content_dir
+        empty_dirs = []
+        for base, dirnames, filenames in os.walk(self.content_dir):
+            if not dirnames and not filenames:
+                empty_dirs.append(base)
+
+        # delete each directory
+        # since the parent directory may have become empty,
+        # add it to the list of empty dirs
+        while empty_dirs:
+            path = empty_dirs.pop(0)
+            parent = os.path.dirname(path)
+            try:
+                os.rmdir(path)
+                log.info('Deleted directory %s', path)
+                if parent != self.content_dir:
+                    if parent not in empty_dirs:
+                        empty_dirs.append(parent)
+            except OSError as err:
+                if err.errno == os.errno.ENOTEMPTY:
+                    pass
+                else:
+                    raise
 
     def rename(self, newname, move_files=False):
         '''Rename this subscription.
@@ -737,8 +771,6 @@ class Episode(object):
             unused, unused_also, local_file = self.files.pop()
             if local_file:  # filename may be empty or None
                 delete_if_exists(local_file)
-
-        # TODO remove empty directories
 
     def move_local_files(self):
         '''Re-apply the filename template for this Episode's downloaded
