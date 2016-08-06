@@ -459,11 +459,10 @@ class Subscription(object):
     def rename_files(self):
         '''Rename file to match a new filename pattern or content dir.'''
         log.info('Rename downloaded episodes for {n!r}'.format(n=self.name))
-        for episode in self.episodes:
-            episode.move_local_files()
-            # save for each file that was moved, so we do not lose info when
-            # an error is raised
-            # TODO: maybe better to save with `finally` ?
+        try:
+            for episode in self.episodes:
+                episode.move_local_files()
+        finally:
             self._save_index()
 
     # cache ------------------------------------------------------------------
