@@ -736,7 +736,8 @@ class Episode(object):
         '''Delete the local files for this episode (if they exist).'''
         while self.files:
             unused, unused_also, local_file = self.files.pop()
-            delete_if_exists(local_file)
+            if local_file:  # filename may be empty or None
+                delete_if_exists(local_file)
 
         # TODO remove empty directories
 
