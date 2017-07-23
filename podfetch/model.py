@@ -356,6 +356,7 @@ class Subscription(object):
         for entry in feed.get('entries', []):
             id_ = id_for_entry(entry)
             episode = self._episode_for_id(id_)
+            log.debug('Check episode id {!r}.'.format(id_))
             if episode:
                 pass
             else:
@@ -438,6 +439,7 @@ class Subscription(object):
                 os.rmdir(path)
                 log.info('Deleted directory %s', path)
                 if parent != self.content_dir:
+                    # TODO - does not seem to work
                     if parent not in empty_dirs:
                         empty_dirs.append(parent)
             except OSError as err:
