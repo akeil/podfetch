@@ -47,7 +47,7 @@ from podfetch.exceptions import FeedNotFoundError
 from podfetch.timehelper import UTC
 
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 # for generating enclosure-filenames
@@ -174,8 +174,7 @@ class Subscription(object):
         _set('content_dir', self._content_dir)
 
         filename = path or os.path.join(self.config_dir, self.name)
-        log.debug('Save Subscription {!r} to {!r}.'.format(self.name,
-                                                           filename))
+        LOG.debug('Save Subscription %r to %r.', self.name, filename)
         require_directory(os.path.dirname(filename))
         with open(filename, 'w') as fp:
             cfg.write(fp)
@@ -214,7 +213,7 @@ class Subscription(object):
             raise NoSubscriptionError(('No config file exists at'
                                        ' {!r}.').format(path))
 
-        log.debug('Read subscription from {!r}.'.format(path))
+        LOG.debug('Read subscription from %r.', path)
 
         def get(key, default=None, fmt=None):
             result = default
@@ -226,7 +225,7 @@ class Subscription(object):
                 else:
                     result = cfg.get(SECTION, key)
             except _ConfigParserError:
-                log.debug('Could not read {k!r} from ini.'.format(k=key))
+                LOG.debug('Could not read %r from ini.', key)
             return result
 
         feed_url = get('url')
@@ -293,8 +292,8 @@ class Subscription(object):
                 if err.errno == os.errno.ENOENT:
                     pass
                 elif err.errno == os.errno.ENOTEMPTY:
-                    log.warning(('Directory {!r} was not removed because it'
-                                 ' is not empty.').format(self.content_dir))
+                    LOG.warning(('Directory %r was not removed because it'
+                                 ' is not empty.'), self.content_dir)
                 else:
                     raise
 
@@ -321,16 +320,16 @@ class Subscription(object):
             etag=self._cache_get(CACHE_ETAG),
             modified=self._cache_get(CACHE_MODIFIED),
         )
-        log.debug('Feed status is {}'.format(feed.status))
+        LOG.debug('Feed status is %s', feed.status)
 
         if feed.status == 304:  # not modified
             if force:
-                log.debug('Forced download, ignore HTTP etag and modified.')
+                LOG.debug('Forced download, ignore HTTP etag and modified.')
             else:
-                log.info('Feed for {!r} is not modified.'.format(self.name))
+                LOG.info('Feed for %r is not modified.', self.name)
                 return
         elif feed.status == 301:  # moved permanent
-            log.info('Received status 301, change url for subscription.')
+            LOG.info('Received status 301, change url for subscription.')
             self.feed_url = feed.href
             self.save()
 
@@ -356,7 +355,7 @@ class Subscription(object):
         for entry in feed.get('entries', []):
             id_ = id_for_entry(entry)
             episode = self._episode_for_id(id_)
-            log.debug('Check episode id {!r}.'.format(id_))
+            LOG.debug('Check episode id %r.', id_)
             if episode:
                 pass
             else:
@@ -365,8 +364,8 @@ class Subscription(object):
                 if episode.has_attachments:
                     self.episodes.append(episode)
                 else:
-                    log.debug(('{e!r} does not have attachments'
-                               ' and is ignored.').format(e=episode))
+                    LOG.debug(('%r does not have attachments'
+                               ' and is ignored.'), episode)
                     continue
 
             try:
@@ -374,8 +373,8 @@ class Subscription(object):
                 self._save_index()
             except Exception as err:
                 has_errors = True
-                log.error(('Failed to update episode {epi}.'
-                           ' Error was {err!r}').format(epi=episode, err=err))
+                LOG.error('Failed to update episode %s. Error was %r',
+                    episode, err)
 
             return not has_errors
 
@@ -401,8 +400,8 @@ class Subscription(object):
         keep = max(self.max_episodes, 0)  # -1 to 0
         selected = episodes[:-keep]
 
-        log.info(('Purge {!r}, select {} episodes to delete'
-                  ' ({} to keep)').format(self, len(selected), keep))
+        LOG.info('Purge %r, select %s episodes to delete (%s to keep)',
+            self, len(selected), keep)
 
         deleted_files = []
         try:
@@ -437,7 +436,7 @@ class Subscription(object):
             parent = os.path.dirname(path)
             try:
                 os.rmdir(path)
-                log.info('Deleted directory %s', path)
+                LOG.info('Deleted directory %s', path)
                 if parent != self.content_dir:
                     # TODO - does not seem to work
                     if parent not in empty_dirs:
@@ -456,10 +455,9 @@ class Subscription(object):
         It will *optionally* rename downloaded episodes, moving them to
         a different *content_dir*.
         '''
-        log.info('Rename subscription {o!r} -> {n!r}.'.format(o=self.name,
-                                                              n=newname))
+        LOG.info('Rename subscription %r -> %r.', self.name, newname)
 
-        log.info('Forget cache entries.')
+        LOG.info('Forget cache entries.')
         cached = {}
         for key in CACHE_ALL:
             cached[key] = self._cache_get(key)
@@ -474,27 +472,27 @@ class Subscription(object):
             self.rename_files()
 
         # index was loaded - save it to the new name
-        log.info('Save index under new name {f!r}.'.format(f=self.index_file))
+        LOG.info('Save index under new name %r.', self.index_file)
         self._save_index()
         if self.index_file != old_index_file:
-            log.info('Delete old index file {f!r}.'.format(f=old_index_file))
+            LOG.info('Delete old index file %r.', old_index_file)
             os.unlink(old_index_file)
 
-        log.info('Save cache under new name.')
+        LOG.info('Save cache under new name.')
         for key, value in cached.items():
             self._cache_put(key, value)
 
         try:
             os.rmdir(old_content_dir)
         except OSError as err:
-            log.warning(('Could not delete directory {d!r}.'
-                         ' Error was {e}.').format(d=old_content_dir, e=err))
+            LOG.warning('Could not delete directory %r. Error was %s.',
+                old_content_dir, err)
             if err.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
                 raise
 
     def rename_files(self):
         '''Rename file to match a new filename pattern or content dir.'''
-        log.info('Rename downloaded episodes for {n!r}'.format(n=self.name))
+        LOG.info('Rename downloaded episodes for %r', self.name)
         try:
             for episode in self.episodes:
                 episode.move_local_files()
@@ -523,7 +521,7 @@ class Subscription(object):
                 with open(path, 'w') as cachefile:
                     cachefile.write(value)
             except Exception as err:
-                log.error('Error writing cache file: {!r}'.format(err))
+                LOG.error('Error writing cache file: %r', err)
                 forget = True
 
         # value was empty or writing failed
@@ -537,8 +535,7 @@ class Subscription(object):
             try:
                 delete_if_exists(self._cache_path(key))
             except Exception:
-                log.error(('Failed to delete cache {!r} of'
-                           ' {!r}.').format(key, self.name))
+                LOG.error('Failed to delete cache %r of %r.', key, self.name)
 
     def _cache_path(self, key):
         return os.path.join(self.cache_dir, '{}.{}'.format(self.name, key))
@@ -678,7 +675,7 @@ class Episode(object):
                                                 dst_file=local_file)
                 self.files[index] = (url, content_type, local_file)
             else:
-                log.debug('Skip {!r}.'.format(url))
+                LOG.debug('Skip %r.', url)
 
     def _is_downloaded(self, url):
         '''Tell if the enclosure for the given URL has been downloaded.
@@ -705,8 +702,8 @@ class Episode(object):
             local_file = os.path.join(self.subscription.content_dir, filename)
             local_file = unique_filename(local_file)
 
-        log.info('Download from {!r}.'.format(url))
-        log.info('Local file is {!r}.'.format(local_file))
+        LOG.info('Download from %r.', url)
+        LOG.info('Local file is %r.', local_file)
         require_directory(os.path.dirname(local_file))
         download(url, local_file)
         return local_file
@@ -786,20 +783,20 @@ class Episode(object):
             newpath = os.path.join(self.subscription.content_dir,
                                    self._generate_filename(content_type, index))
             if not oldpath:
-                log.warning('Episode {e!r} has no local file'.format(e=self))
+                LOG.warning('Episode %r has no local file', self)
             elif newpath != oldpath:
                 newpath = unique_filename(newpath)
                 dirname = os.path.dirname(newpath)
                 require_directory(dirname)
-                log.debug('Move {o!r} -> {n!r}'.format(o=oldpath, n=newpath))
+                LOG.debug('Move %r -> %r', oldpath, newpath)
                 try:
                     shutil.move(oldpath, newpath)
                     self.files[index] = (url, content_type, newpath)
                 except OSError as err:
                     if err.errno != os.errno.ENOENT:
                         raise
-                    log.warning(('Failed to rename file {f!r}.'
-                                 ' File does not exist.').format(f=oldpath))
+                    LOG.warning(('Failed to rename file %r.'
+                        ' File does not exist.'), oldpath)
 
     def _file_extension_for_mime(self, content_type):
         '''Get the appropriate file extension for a given content type.
@@ -980,7 +977,7 @@ def download(download_url, dst_path):
             for chunk in r.iter_content(chunk_size):
                 f.write(chunk)
 
-    log.debug('Downloaded to tempdst: {!r}.'.format(tempdst))
+    LOG.debug('Downloaded to tempdst: %r.', tempdst)
     try:
         shutil.move(tempdst, dst_path)
         # desired permissions are -rw-r--r
