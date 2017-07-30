@@ -8,11 +8,12 @@ import pytest
 import os
 from datetime import date
 
-from podfetch.application import Filter
-from podfetch.application import WildcardFilter
-from podfetch.application import EnabledFilter
-from podfetch.application import PubdateAfter
-from podfetch.application import PubdateBefore
+from podfetch.predicate import Filter
+from podfetch.predicate import NameFilter
+from podfetch.predicate import WildcardFilter
+from podfetch.predicate import EnabledFilter
+from podfetch.predicate import PubdateAfter
+from podfetch.predicate import PubdateBefore
 
 
 class _DummySubscription:

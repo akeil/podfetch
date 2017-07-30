@@ -26,11 +26,11 @@ except ImportError:
 
 import podfetch
 from podfetch import application
-from podfetch.application import Filter
-from podfetch.application import WildcardFilter
-from podfetch.application import NameFilter
-from podfetch.application import PubdateAfter
-from podfetch.application import PubdateBefore
+from podfetch.predicate import Filter
+from podfetch.predicate import WildcardFilter
+from podfetch.predicate import NameFilter
+from podfetch.predicate import PubdateAfter
+from podfetch.predicate import PubdateBefore
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import UserError
 from podfetch.model import Subscription
