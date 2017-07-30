@@ -49,7 +49,7 @@ from podfetch.predicate import WildcardFilter
 from podfetch import exceptions as ex
 
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 # events ----------------------------------------------------------------------
@@ -69,7 +69,7 @@ EP_EVENTS = 'podfetch.events'
 # application -----------------------------------------------------------------
 
 
-class Podfetch(object):
+class Podfetch:
     '''The main application class.
     Used to manage and update subscriptions.
 
@@ -103,14 +103,14 @@ class Podfetch(object):
         self.ignore = ignore
         self.supported_content = supported_content or {}
 
-        log.debug('config_dir: {!r}.'.format(self.config_dir))
-        log.debug('index_dir: {!r}'.format(self.index_dir))
-        log.debug('content_dir: {!r}.'.format(self.content_dir))
-        log.debug('cache_dir: {!r}.'.format(self.cache_dir))
-        log.debug('filename_template: {!r}.'.format(self.filename_template))
-        log.debug('update_threads: {}'.format(self.update_threads))
-        log.debug('ignore: {!r}'.format(self.ignore))
-        log.debug('supported_content: {}'.format(', '.join(self.supported_content.keys())))
+        LOG.debug('config_dir: %r.', self.config_dir)
+        LOG.debug('index_dir: %r', self.index_dir)
+        LOG.debug('content_dir: %r.', self.content_dir)
+        LOG.debug('cache_dir: %r.', self.cache_dir)
+        LOG.debug('filename_template: %r.', self.filename_template)
+        LOG.debug('update_threads: %s', self.update_threads)
+        LOG.debug('ignore: %r', self.ignore)
+        LOG.debug('supported_content: %s', ', '.join(self.supported_content.keys()))
 
     def subscription_for_name(self, name):
         '''Get the :class:`model.Subscription` with the given name.
@@ -149,10 +149,11 @@ class Podfetch(object):
                     try:
                         yield self.subscription_for_name(name)
                     except Exception as e:  # TODO exception type
-                        log.error(e)
+                        LOG.error(e)
 
-    def iter_episodes(self, predicate=None):
-        for subscription in self.iter_subscriptions(predicate=predicate):
+    def iter_episodes(self, sub_filter=None):
+        '''Iterate over Episodes from all subscriptions.'''
+        for subscription in self.iter_subscriptions(predicate=sub_filter):
             for episode in subscription.episodes:
                 yield episode
 
@@ -193,14 +194,14 @@ class Podfetch(object):
                     done = True
 
         def update_one(subscription, force=False):
-            log.info('Update {!r}.'.format(subscription.name))
+            LOG.info('Update %r.', subscription.name)
             initial_episode_count = len(subscription.episodes)
             try:
                 subscription.update(force=force)
             except Exception as err:
-                log.error(('Failed to fetch feed {n!r}. Error was:'
-                    ' {e}').format(n=subscription.name, e=err))
-                log.debug(err, exc_info=True)
+                LOG.error('Failed to fetch feed %r. Error was: %s',
+                    subscription.name, err)
+                LOG.debug(err, exc_info=True)
             finally:
                 tasks.task_done()
 
@@ -215,14 +216,14 @@ class Podfetch(object):
         use_threading = num_tasks > 1 and num_workers > 1
 
         if use_threading:
-            log.debug('Using {} update-threads.'.format(num_workers))
+            LOG.debug('Using %s update-threads.', num_workers)
             for index in range(1, num_workers+1):
                 threading.Thread(
                     name='update-thread-{}'.format(index),
                     daemon=True,
                     target=work,
                 ).run()
-                log.debug('Started update-thread-{}.'.format(index))
+                LOG.debug('Started update-thread-%s.', index)
         else:
             work()
 
@@ -286,7 +287,7 @@ class Podfetch(object):
         sub = self.subscription_for_name(name)
         filename = os.path.join(self.subscriptions_dir, name)
         sub.delete(keep_episodes=not delete_content)
-        log.info('Delete subscription at {!r}.'.format(filename))
+        LOG.info('Delete subscription at %r.', filename)
         try:
             os.unlink(filename)
         except os.error as e:
@@ -313,8 +314,7 @@ class Podfetch(object):
             counter += 1
 
         if name != original_name:
-            log.info(
-                'Changed name from {!r} to {!r}.'.format(original_name, name))
+            LOG.info('Changed name from %r to %r.', original_name, name)
 
         return name
 
@@ -362,7 +362,7 @@ class Podfetch(object):
             *optional*, rename files for already downloaded episodes
             if for example the ``filename_template`` is changed.
         '''
-        log.debug('Edit subscription {n!r}.'.format(n=subscription_name))
+        LOG.debug('Edit subscription %r.', subscription_name)
         sub = self.subscription_for_name(subscription_name)
         could_rename_files = False
 
@@ -400,26 +400,26 @@ class Podfetch(object):
         new_filename = os.path.join(self.subscriptions_dir, sub.name)
         if old_filename != new_filename:
             # we did save successfully, so the new file exists
-            log.info('Delete old subscription {f!r}.'.format(f=old_filename))
+            LOG.info('Delete old subscription %r.', old_filename)
             os.unlink(old_filename)
 
     def run_hooks(self, event, *args):
         '''Run hooks for the given ``event``.'''
-        log.debug('Run hooks for event {e!r}'.format(e=event))
+        LOG.debug('Run hooks for event %r', event)
         for ep in iter_entry_points(EP_EVENTS, name=event):
             try:
                 hook = ep.load()
             except ImportError as e:
-                log.error('Failed to load entry point {e!r}'.format(e=ep))
+                LOG.error('Failed to load entry point %r', ep)
                 continue
 
-            log.debug('Run hook {h!r}'.format(h=hook))
+            LOG.debug('Run hook {h!r}'.format(h=hook))
 
             try:
                 hook(self, *args)
             except Exception as e:
-                log.error('Failed to run hook {h!r}'.format(h=hook))
-                log.debug(e, exc_info=True)
+                LOG.error('Failed to run hook %r', hook)
+                LOG.debug(e, exc_info=True)
 
 
 # Helpers --------------------------------------------------------------------

@@ -10,7 +10,7 @@ from datetime import date
 LOG = logging.getLogger(__name__)
 
 
-class Filter(object):
+class Filter:
     '''Filter baseclass; can be used directly as an accept-all filter.'''
 
     def __call__(self, candidate):
