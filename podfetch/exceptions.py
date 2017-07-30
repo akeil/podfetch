@@ -31,3 +31,7 @@ class FeedNotFoundError(PodfetchError):
 class UserError(Exception):
     '''Raised for bad input, missing parameters, ...'''
     pass
+
+
+class StorageError(PodfetchError):
+    pass

@@ -43,6 +43,7 @@ except ImportError:
 
 import feedparser
 
+from podfetch.fsstorage import FileSystemStorage
 from podfetch.model import Subscription
 from podfetch.predicate import Filter
 from podfetch.predicate import WildcardFilter
@@ -95,6 +96,7 @@ class Podfetch:
         supported_content=None):
         self.config_dir = config_dir
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
+        self._storage = FileSystemStorage(self.subscriptions_dir)
         self.index_dir = index_dir
         self.content_dir = content_dir
         self.cache_dir = cache_dir
@@ -198,6 +200,7 @@ class Podfetch:
             initial_episode_count = len(subscription.episodes)
             try:
                 subscription.update(force=force)
+                self._storage.save_subscription(subscription)
             except Exception as err:
                 LOG.error('Failed to fetch feed %r. Error was: %s',
                     subscription.name, err)
@@ -268,7 +271,7 @@ class Podfetch:
             app_filename_template=self.filename_template,
             supported_content=self.supported_content,
         )
-        sub.save()
+        self._storage.save_subscription(sub)
         self.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
         return sub
 
@@ -322,13 +325,13 @@ class Podfetch:
         deleted_files = []
         for subscription in self.iter_subscriptions():
             deleted_files += subscription.purge(simulate=simulate)
-            subscription.save()
+            self._storage.save_subscription(subscription)
         return deleted_files
 
     def purge_one(self, name, simulate=False):
         subscription = self.subscription_for_name(name)
         deleted_files = subscription.purge(simulate=simulate)
-        subscription.save()
+        self._storage.save_subscription(subscription)
         return deleted_files
 
     def edit(self, subscription_name, name=None, url=None, title=None,
@@ -390,12 +393,13 @@ class Podfetch:
         if could_rename_files and move_files:
             sub.rename_files()
 
-        sub.save()
+        self._storage.save_subscription(sub)
 
         # special case - name is also the filename
         old_filename = os.path.join(self.subscriptions_dir, sub.name)
         if name is not None:
             sub.rename(name, move_files=move_files)
+            self._storage.save_subscription(sub)
 
         new_filename = os.path.join(self.subscriptions_dir, sub.name)
         if old_filename != new_filename:
@@ -440,6 +444,7 @@ def name_from_url(url):
     return name
 
 
+#TODO move to "helpers" module
 def require_directory(dirname):
     '''Create the given directory if it does not exist.'''
     try:

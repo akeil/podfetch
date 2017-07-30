@@ -813,6 +813,7 @@ def _editor(app, args):
     unused, tmp = tempfile.mkstemp()
 
     try:
+        # TODO: use FileSystemStorage and save to temp
         sub.save(path=tmp)
         _write_props(tmp, _read_props(tmp))
         changes_made = _open_in_editor(tmp)

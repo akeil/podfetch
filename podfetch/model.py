@@ -151,7 +151,7 @@ class Subscription(object):
         '''Absolute path to the index file for this Subscription.'''
         return os.path.join(self.index_dir, '{}.json'.format(self.name))
 
-    def save(self, path=None):
+    def XXXsave(self, path=None):
         '''Save this subscription to an ini-file in the given
         directory. The filename will be the ``name`` of this subscription.
 
@@ -284,18 +284,21 @@ class Subscription(object):
         self._cache_forget()
         delete_if_exists(self.index_file)
         if not keep_episodes:
-            for episode in self.episodes:
-                episode.delete_local_files()
-            try:
-                os.rmdir(self.content_dir)
-            except os.error as err:
-                if err.errno == os.errno.ENOENT:
-                    pass
-                elif err.errno == os.errno.ENOTEMPTY:
-                    LOG.warning(('Directory %r was not removed because it'
-                                 ' is not empty.'), self.content_dir)
-                else:
-                    raise
+            self.delete_downloaded_files()
+
+    def delete_downloaded_files(self):
+        for episode in self.episodes:
+            episode.delete_local_files()
+        try:
+            os.rmdir(self.content_dir)
+        except os.error as err:
+            if err.errno == os.errno.ENOENT:
+                pass
+            elif err.errno == os.errno.ENOTEMPTY:
+                LOG.warning(('Directory %r was not removed because it'
+                             ' is not empty.'), self.content_dir)
+            else:
+                raise
 
     def update(self, force=False):
         '''fetch the RSS/Atom feed for this podcast and download any new
@@ -306,11 +309,6 @@ class Subscription(object):
             HTTP headers indicate it was not modified.
             Also, re-download all episodes, even if they already exist.
             Defaults to *False*.
-        :rtype int:
-            Error code indicating the result of individual downloads.
-            ``0``: OK,
-            ``1``: some episodes failed,
-            ``2``: all episodes failed.
         :raises:
             In addition to the error code, a :class:`FeedNotFoundError`
             or :class:`FeedGoneError` can be raised.
@@ -331,7 +329,6 @@ class Subscription(object):
         elif feed.status == 301:  # moved permanent
             LOG.info('Received status 301, change url for subscription.')
             self.feed_url = feed.href
-            self.save()
 
         entries_ok = True
         try:
@@ -467,7 +464,6 @@ class Subscription(object):
         old_content_dir = self.content_dir
 
         self.name = newname
-        self.save()  # TODO: let caller `save()` ?
         if move_files:
             self.rename_files()
 
@@ -987,6 +983,7 @@ def download(download_url, dst_path):
         delete_if_exists(tempdst)
 
 
+#TODO move to "helpers" module
 def require_directory(dirname):
     '''Create the given directory if it does not exist.'''
     try:
