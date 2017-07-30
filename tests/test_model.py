@@ -141,38 +141,6 @@ class DummyEnclosure(_Dummy):
 # Subscription Tests ----------------------------------------------------------
 
 
-def test_save_and_load_index(sub):
-    '''Save the index of downloaded enclosures to disk and load it.'''
-    for index in range(5):
-        sub.episodes.append(
-            Episode(sub, 'id.{}'.format(index), SUPPORTED_CONTENT)
-        )
-
-    sub._save_index()
-
-    assert os.path.isfile(sub.index_file)
-
-    reloaded_sub = Subscription('name', 'url',
-        'index_dir', 'content_dir', sub.cache_dir)
-    reloaded_sub._load_index()
-    for index in range(5):
-        id_ = 'id.{}'.format(index)
-        episode = sub._episode_for_id(id_)
-        assert episode is not None
-
-    assert sub._episode_for_id('bogus') is None
-
-
-def test_save_index_create_directory(sub, tmpdir):
-    '''Assert that the directory for the index file is created
-    if it does not exist.'''
-    sub.index_dir = str(tmpdir.join('does-not-exist'))
-    sub.name = 'name'
-    sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT))
-    sub._save_index()
-    assert os.path.isfile(os.path.join(sub.index_dir, 'name.json'))
-
-
 def test_write_read_cache(sub):
     '''Write to cache and retrieve correctly.'''
     data = {
@@ -227,7 +195,8 @@ def test_update_feed_unchanged(sub, monkeypatch):
     sub._cache_put('modified', 'modified-value')
     sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    storage = None
+    sub.update(storage)
 
     assert not sub._update_entries.called
     assert sub._cache_get('etag') == 'etag-value'
@@ -242,7 +211,8 @@ def test_forced_update_feed_unchanged(sub, monkeypatch):
     sub._cache_put('etag', 'etag-value')
     sub._cache_put('modified', 'modified-value')
 
-    sub.update(force=True)
+    storage = None
+    sub.update(storage, force=True)
 
     assert len(sub.episodes) > 0
 
@@ -259,7 +229,8 @@ def test_update_store_feed_headers(sub, monkeypatch):
     sub._cache_put('modified', 'intial-modified')
     sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    storage = None
+    sub.update(storage)
 
     assert sub._update_entries.called
     assert sub._cache_get('etag') == 'new-etag'
@@ -277,8 +248,9 @@ def test_failed_update_no_store_feed_headers(sub, monkeypatch):
     sub._cache_put('modified', 'initial-modified')
     sub._update_entries = mock.MagicMock(side_effect=ValueError)
 
+    storage = None
     with pytest.raises(ValueError):
-        sub.update()
+        sub.update(storage)
 
     assert sub._cache_get('etag') == 'initial-etag'
     assert sub._cache_get('modified') == 'initial-modified'
@@ -291,7 +263,8 @@ def test_update_feed_moved_permanently(sub, monkeypatch):
 
     sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    storage = None
+    sub.update(storage)
 
     assert sub._update_entries.called
     assert sub.feed_url == new_url
@@ -306,8 +279,10 @@ def test_update_error_fetching_feed(sub, monkeypatch):
 
     monkeypatch.setattr(model, '_fetch_feed', mock_fetch_feed)
 
+    storage = None
+
     with pytest.raises(FeedNotFoundError):
-        sub.update()
+        sub.update(storage)
 
     etag = sub._cache_get('etag')
     modified = sub._cache_get('modified')
@@ -421,7 +396,10 @@ def test_purge_keepall(sub, monkeypatch):
     if max_episodes < 1'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
-    sub.update()
+
+    storage = None
+    sub.update(storage)
+
     sub.max_episodes = -1
 
     # relies on common.FEED_DATA having exactly two items
@@ -761,13 +739,15 @@ def test_feeditem_no_ids(sub, monkeypatch):
     with_dummy_feed(monkeypatch, feed_data=common.FEED_NO_IDS)
     with_mock_download(monkeypatch)
 
+    storage = None
+
     assert len(sub.episodes) == 0
-    sub.update()
+    sub.update(storage)
     new_items = len(sub.episodes)
     assert new_items > 0
 
     model.download.reset_mock()
-    sub.update()
+    sub.update(storage)
     assert not model.download.called
     assert len(sub.episodes) == new_items
 

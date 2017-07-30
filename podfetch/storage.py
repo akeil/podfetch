@@ -49,10 +49,12 @@ class Storage:
 
     # Episodes ----------------------------------------------------------------
 
-    def load_episodes(self, subscription_name):
+    def _load_episodes(self, subscription_name):
+        '''Load all episodes for the given subscription.'''
         raise StorageError('Not Implemented')
 
     def save_episodes(self, episodes):
+        '''Save a single episode.'''
         raise StorageError('Not Implemented')
 
     def save_episode(self, episode):

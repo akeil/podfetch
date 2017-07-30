@@ -4,6 +4,7 @@ File system storage.
 
 
 '''
+import json
 import logging
 import os
 
@@ -17,6 +18,7 @@ except ImportError:
 from podfetch.storage import Storage
 from podfetch.exceptions import StorageError
 from podfetch.exceptions import NoSubscriptionError
+from podfetch.model import Episode
 from podfetch.model import Subscription
 from podfetch.predicate import Filter
 from podfetch.predicate import WildcardFilter
@@ -47,6 +49,9 @@ class FileSystemStorage(Storage):
 
     def _subscription_path(self, name):
         return os.path.join(self.config_dir, name)
+
+    def _index_path(self, name):
+        return os.path.join(self.index_dir, '{}.json'.format(name))
 
     def save_subscription(self, subscription):
         '''Save a single subscription.'''
@@ -125,7 +130,7 @@ class FileSystemStorage(Storage):
             raise NoSubscriptionError(('Failed to read URL from'
                                        ' {p!r}.').format(p=path))
 
-        return Subscription(
+        sub = Subscription(
             name,
             feed_url,
             self.index_dir,
@@ -139,6 +144,10 @@ class FileSystemStorage(Storage):
             **kwargs
         )
 
+        sub.episodes = self._load_episodes(sub) or []
+
+        return sub
+
     def delete_subscription(self, name):
         '''Delete a single subscription.'''
         path = self._subscription_path(name)
@@ -148,11 +157,11 @@ class FileSystemStorage(Storage):
         except os.error as e:
             if e.errno != os.errno.ENOENT:
                 raise
-        #TODO.
-        # - clean up index file
-        # - clean up cache
+
+        delete_if_exists(self._index_path(name))
+
+        #TODO clean up cache
         # self._cache_forget()
-        # delete_if_exists(self.index_file)
 
     def rename_subscription(self, oldname, newname):
         '''Change the name for an existing subscription.'''
@@ -160,14 +169,64 @@ class FileSystemStorage(Storage):
 
     # Episodes ----------------------------------------------------------------
 
-    def load_episodes(self, subscription_name):
-        raise StorageError('Not Implemented')
+    def _load_episodes(self, sub):
+        '''Load all episodes for the given subscription.'''
+        name = sub.name
+        data = self._load_episode_index(name)
 
-    def save_episodes(self, episodes):
-        raise StorageError('Not Implemented')
+        return [
+            Episode.from_dict(sub, sub.supported_content, d)
+            for d in data
+        ]
+
+    def _load_episode_index(self, name):
+        data = []
+        try:
+            with open(self._index_path(name)) as src:
+                data = json.load(src)
+        except IOError as err:
+            if err.errno == os.errno.ENOENT:
+                pass
+            else:
+                raise
+
+        return data
+
+    def save_episodes(self, name, episodes):
+        '''Save all episodes for a subscription.'''
+        data = [e.as_dict() for e in episodes]
+        self._save_index_file(name, data)
+
+    def _save_index_file(self, name, data):
+        path = self._index_path(name)
+        if data:
+            require_directory(os.path.dirname(path))
+            with open(path, 'w') as dst:
+                json.dump(data, dst)
+        else:
+            delete_if_exists(path)
 
     def save_episode(self, episode):
-        raise StorageError('Not Implemented')
+        '''Save a single episode.'''
+        name = episode.subscription.name
+        episode_id = episode.id
+        episode_list = self._load_episode_index(name)
+
+        episode_data = episode.as_dict()
+
+        update_index = None
+        for index, item in enumerate(episode_list):
+            existing_id = item['id']
+            if existing_id == episode_id:
+                update_index = index
+                break
+
+        if update_index is not None:
+            episode_list[update_index] = episode_data
+        else:
+            episode_list.append(episode_data)
+
+        self._save_index_file(name, episode_list)
 
     def delete_episode(self, episode):
         raise StorageError('Not Implemented')
@@ -186,6 +245,7 @@ def _mk_config_parser():
     except NameError:
         return ConfigParser(interpolation=None)  # py 3.x
 
+
 #TODO move to "helpers" module
 def require_directory(dirname):
     '''Create the given directory if it does not exist.'''
@@ -193,4 +253,14 @@ def require_directory(dirname):
         os.makedirs(dirname)
     except os.error as err:
         if err.errno != os.errno.EEXIST:
+            raise
+
+
+#TODO move to "helpers" module
+def delete_if_exists(filename):
+    '''Delete the given filename (absolute path) if it exists.'''
+    try:
+        os.unlink(filename)
+    except os.error as err:
+        if err.errno != os.errno.ENOENT:
             raise

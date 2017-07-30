@@ -118,9 +118,7 @@ class Subscription:
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
         self.supported_content = supported_content
-
         self.episodes = []
-        self._load_index()
 
     @property
     def content_dir(self):
@@ -139,36 +137,6 @@ class Subscription:
         # convert '' to None, but NOT None to 'None'
         self._content_dir = None if not str(dirname) else dirname
 
-    @property
-    def index_file(self):
-        '''Absolute path to the index file for this Subscription.'''
-        return os.path.join(self.index_dir, '{}.json'.format(self.name))
-
-    def _load_index(self):
-        try:
-            with open(self.index_file) as src:
-                data = json.load(src)
-        except IOError as err:
-            if err.errno == os.errno.ENOENT:
-                data = []
-            else:
-                raise
-
-        self.episodes = [
-            Episode.from_dict(self, self.supported_content, d)
-            for d in data
-        ]
-
-    def _save_index(self):
-        '''Save the index file for this subscription to disk.'''
-        data = [e.as_dict() for e in self.episodes]
-        if data:
-            require_directory(os.path.dirname(self.index_file))
-            with open(self.index_file, 'w') as dst:
-                json.dump(data, dst)
-        else:
-            delete_if_exists(self.index_file)
-
     def delete_downloaded_files(self):
         for episode in self.episodes:
             episode.delete_local_files()
@@ -183,10 +151,12 @@ class Subscription:
             else:
                 raise
 
-    def update(self, force=False):
+    def update(self, storage, force=False):
         '''fetch the RSS/Atom feed for this podcast and download any new
         episodes.
 
+        :param Storage storage:
+            Reference to the storage backend.
         :param bool force:
             *optional*, if *True*, force downloading the feed even if
             HTTP headers indicate it was not modified.
@@ -215,9 +185,8 @@ class Subscription:
 
         entries_ok = True
         try:
-            entries_ok = self._update_entries(feed, force=force)
+            entries_ok = self._update_entries(feed, storage, force=force)
         finally:
-            self._save_index()  # TODO redundant?
             entries_ok = False
 
         # store etag, modified after *successful* update
@@ -225,7 +194,7 @@ class Subscription:
             self._cache_put(CACHE_ETAG, feed.get('etag'))
             self._cache_put(CACHE_MODIFIED, feed.get('modified'))
 
-    def _update_entries(self, feed, force=False):
+    def _update_entries(self, feed, storage, force=False):
         '''Download content for all feed entries.
 
         Returns *True* if all downloads were successful,
@@ -233,6 +202,7 @@ class Subscription:
         '''
         has_errors = False
         for entry in feed.get('entries', []):
+            should_save = False
             id_ = id_for_entry(entry)
             episode = self._episode_for_id(id_)
             LOG.debug('Check episode id %r.', id_)
@@ -243,6 +213,7 @@ class Subscription:
                     self, self.supported_content, entry)
                 if episode.has_attachments:
                     self.episodes.append(episode)
+                    should_save = True
                 else:
                     LOG.debug(('%r does not have attachments'
                                ' and is ignored.'), episode)
@@ -250,11 +221,19 @@ class Subscription:
 
             try:
                 episode.download(force=force)
-                self._save_index()
+                should_save = True
             except Exception as err:
                 has_errors = True
                 LOG.error('Failed to update episode %s. Error was %r',
                     episode, err)
+
+            if should_save:
+                try:
+                    storage.save_episode(episode)
+                except Exception as err:
+                    LOG.error('Failed to save episode %r.', episode)
+                    LOG.debug(err, exc_info=True)
+                    has_errors = True
 
             return not has_errors
 
@@ -263,7 +242,7 @@ class Subscription:
             if episode.id == id_:
                 return episode
 
-    def purge(self, simulate=False):
+    def purge(self, storage, simulate=False):
         '''Delete old episodes, keep only *max_episodes*.
         If ``self.max_episodes`` is 0 or less, an unlimited number of
         allowed episodes is assumed and nothing is deleted.
@@ -292,7 +271,7 @@ class Subscription:
                     self.episodes.remove(episode)
         finally:
             if not simulate:
-                self._save_index()
+                storage.save_episodes(self.name, self.episodes)
 
         if not simulate:
             self._remove_empty_directories()
@@ -343,6 +322,7 @@ class Subscription:
             cached[key] = self._cache_get(key)
         self._cache_forget(*CACHE_ALL)
 
+        # TODO: get index file
         old_index_file = self.index_file
         old_content_dir = self.content_dir
 
@@ -352,7 +332,7 @@ class Subscription:
 
         # index was loaded - save it to the new name
         LOG.info('Save index under new name %r.', self.index_file)
-        self._save_index()
+        #TODO: self._save_index()
         if self.index_file != old_index_file:
             LOG.info('Delete old index file %r.', old_index_file)
             os.unlink(old_index_file)
@@ -369,14 +349,14 @@ class Subscription:
             if err.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
                 raise
 
-    def rename_files(self):
+    def rename_files(self, storage):
         '''Rename file to match a new filename pattern or content dir.'''
         LOG.info('Rename downloaded episodes for %r', self.name)
         try:
             for episode in self.episodes:
                 episode.move_local_files()
         finally:
-            self._save_index()
+            storage.save_episodes(self.name, self.episodes)
 
     # cache ------------------------------------------------------------------
 

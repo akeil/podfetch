@@ -194,7 +194,7 @@ class Podfetch:
             LOG.info('Update %r.', subscription.name)
             initial_episode_count = len(subscription.episodes)
             try:
-                subscription.update(force=force)
+                subscription.update(self._storage, force=force)
                 self._storage.save_subscription(subscription)
             except Exception as err:
                 LOG.error('Failed to fetch feed %r. Error was: %s',
@@ -318,13 +318,13 @@ class Podfetch:
     def purge_all(self, simulate=False):
         deleted_files = []
         for subscription in self.iter_subscriptions():
-            deleted_files += subscription.purge(simulate=simulate)
+            deleted_files += subscription.purge(self._storage, simulate=simulate)
             self._storage.save_subscription(subscription)
         return deleted_files
 
     def purge_one(self, name, simulate=False):
         subscription = self.subscription_for_name(name)
-        deleted_files = subscription.purge(simulate=simulate)
+        deleted_files = subscription.purge(self._storage, simulate=simulate)
         self._storage.save_subscription(subscription)
         return deleted_files
 

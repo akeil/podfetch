@@ -139,3 +139,35 @@ def DISABLED_test_delete(sub, monkeypatch):
     assert not os.path.exists(sub._cache_path('etag'))
     assert not os.path.exists(sub._cache_path('modified'))
     assert not os.path.exists(sub.index_file)
+
+
+def DISABLED_test_save_and_load_index(sub):
+    '''Save the index of downloaded enclosures to disk and load it.'''
+    for index in range(5):
+        sub.episodes.append(
+            Episode(sub, 'id.{}'.format(index), SUPPORTED_CONTENT)
+        )
+
+    sub._save_index()
+
+    assert os.path.isfile(sub.index_file)
+
+    reloaded_sub = Subscription('name', 'url',
+        'index_dir', 'content_dir', sub.cache_dir)
+    reloaded_sub._load_index()
+    for index in range(5):
+        id_ = 'id.{}'.format(index)
+        episode = sub._episode_for_id(id_)
+        assert episode is not None
+
+    assert sub._episode_for_id('bogus') is None
+
+
+def DISABLED_test_save_index_create_directory(sub, tmpdir):
+    '''Assert that the directory for the index file is created
+    if it does not exist.'''
+    sub.index_dir = str(tmpdir.join('does-not-exist'))
+    sub.name = 'name'
+    sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT))
+    sub._save_index()
+    assert os.path.isfile(os.path.join(sub.index_dir, 'name.json'))
