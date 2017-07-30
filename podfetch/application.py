@@ -96,7 +96,6 @@ class Podfetch:
         supported_content=None):
         self.config_dir = config_dir
         self.subscriptions_dir = os.path.join(config_dir, 'subscriptions')
-        self._storage = FileSystemStorage(self.subscriptions_dir)
         self.index_dir = index_dir
         self.content_dir = content_dir
         self.cache_dir = cache_dir
@@ -104,6 +103,13 @@ class Podfetch:
         self.update_threads = max(1, update_threads)
         self.ignore = ignore
         self.supported_content = supported_content or {}
+
+        self._storage = FileSystemStorage(
+            self.subscriptions_dir,
+            self.index_dir,
+            self.content_dir,
+            self.cache_dir
+        )
 
         LOG.debug('config_dir: %r.', self.config_dir)
         LOG.debug('index_dir: %r', self.index_dir)
@@ -125,13 +131,11 @@ class Podfetch:
             NoSubscriptionError if no subscription with that name
             exists
         '''
-        filename = os.path.join(self.subscriptions_dir, name)
-        sub = Subscription.from_file(
-            filename, self.index_dir, self.content_dir, self.cache_dir,
+        return self._storage.load_subscription(
+            name,
             app_filename_template=self.filename_template,
             supported_content=self.supported_content,
         )
-        return sub
 
     def iter_subscriptions(self, predicate=None):
         '''Iterate over all configured subscriptions.

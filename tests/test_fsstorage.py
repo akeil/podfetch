@@ -51,3 +51,72 @@ def DISABLED_test_url_escape(tmpdir):
     filename = os.path.join(sub.config_dir, sub.name)
     reloaded = Subscription.from_file(filename, index_dir, content_dir, cache_dir)
     assert reloaded.feed_url == url
+
+
+def DISABLED_test_load_subscription_from_file(tmpdir):
+    '''Load a subscription from its config file.'''
+    load_from = tmpdir.join('the_name')
+    load_from.write('\n'.join([
+        '[subscription]',
+        'url=http://example.com/feed',
+        'max_episodes = 30',
+        'filename_template = template',
+        'title = the_title',
+        'content_dir = subscription_content_dir',
+        'enabled = False',
+    ]))
+
+    sub = Subscription.from_file(
+        str(load_from), 'index_dir', 'content_dir', 'cache_dir'
+    )
+
+    assert sub.name == 'the_name'
+    assert sub.feed_url == 'http://example.com/feed'
+    assert sub.title == 'the_title'
+    assert sub.max_episodes == 30
+    assert sub.filename_template == 'template'
+    assert sub.content_dir == 'subscription_content_dir'
+    assert sub.enabled == False
+
+
+def DISABLED_test_load_nonexisting_raises_error():
+    '''Trying to load a Subscription from a non-existing config file
+    must raise a NoSubscriptionError.'''
+    with pytest.raises(NoSubscriptionError):
+        sub = Subscription.from_file(
+            'does-not-exist',
+            'index_dir', 'content_dir', 'cache_dir'
+        )
+
+
+def DISABLED_test_load_invalid_raises_error(tmpdir):
+    '''Loading a subscription from a file that is not in ini-format.'''
+    invalid_file = tmpdir.join('invalid_file')
+    invalid_file.write('something')
+    with pytest.raises(NoSubscriptionError):
+        Subscription.from_file(
+            str(invalid_file),
+            'index_dir', 'content_dir', 'cache_dir'
+        )
+
+
+def DISABLED_test_load_empty_raises_error(tmpdir):
+    '''Loading a subscription from an empty file.'''
+    empty_file = tmpdir.join('invalid_file')
+    empty_file.write('')
+    with pytest.raises(NoSubscriptionError):
+        Subscription.from_file(
+            str(empty_file),
+            'index_dir', 'content_dir', 'cache_dir'
+        )
+
+
+def DISABLED_test_load_missing_url(tmpdir):
+    '''Loading a subscription from ini file with required fields missing.'''
+    invalid_file = tmpdir.join('invalid_file')
+    invalid_file.write('[subscription]\nfield = value')
+    with pytest.raises(NoSubscriptionError):
+        Subscription.from_file(
+            str(invalid_file),
+            'index_dir', 'content_dir', 'cache_dir'
+        )

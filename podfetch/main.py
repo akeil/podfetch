@@ -819,6 +819,7 @@ def _editor(app, args):
         changes_made = _open_in_editor(tmp)
         if changes_made:
             log.info('Apply changes')
+            # TODO: use FileSystemStorage and load from temp
             changed = Subscription.from_file(
                 tmp,
                 sub.index_dir,

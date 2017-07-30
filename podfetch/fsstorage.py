@@ -16,6 +16,7 @@ except ImportError:
 
 from podfetch.storage import Storage
 from podfetch.exceptions import StorageError
+from podfetch.exceptions import NoSubscriptionError
 from podfetch.model import Subscription
 
 
@@ -27,8 +28,16 @@ SECTION = 'subscription'
 
 class FileSystemStorage(Storage):
 
-    def __init__(self, config_dir):
+    def __init__(self,
+        config_dir,
+        index_dir,
+        default_content_dir,
+        cache_dir):
+
         self.config_dir = config_dir
+        self.index_dir = index_dir
+        self.default_content_dir = default_content_dir
+        self.cache_dir = cache_dir
 
     # Subscriptons ------------------------------------------------------------
 
@@ -97,11 +106,12 @@ class FileSystemStorage(Storage):
                                        ' {p!r}.').format(p=path))
 
         return Subscription(
-            name, feed_url,
-            self.config_dir,
-            index_dir,
-            app_content_dir,
-            cache_dir,
+            name,
+            feed_url,
+            self.config_dir,  # config or subscriptions ?
+            self.index_dir,
+            self.default_content_dir,
+            self.cache_dir,
             title=get('title'),
             max_episodes=get('max_episodes', default=-1, fmt='int'),
             enabled=get('enabled', default=True, fmt='bool'),
