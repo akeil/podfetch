@@ -151,6 +151,11 @@ class Podfetch(object):
                     except Exception as e:  # TODO exception type
                         log.error(e)
 
+    def iter_episodes(self, predicate=None):
+        for subscription in self.iter_subscriptions(predicate=predicate):
+            for episode in subscription.episodes:
+                yield episode
+
     def update(self, predicate=None, force=False):
         '''Fetch new episodes for the given ``subscription_names``.
 
@@ -496,7 +501,12 @@ class NameFilter(Filter):
         self.name = name
 
     def __call__(self, candidate):
-        return candidate == self.name
+        if hasattr(candidate, 'name'):
+            # for Subscriptions and Episodes
+            return getattr(candidate, 'name') == self.name
+        else:
+            # for strings
+            return candidate == self.name
 
 
 class WildcardFilter(Filter):
@@ -506,13 +516,36 @@ class WildcardFilter(Filter):
         self.patterns = patterns[:] if patterns else ['*']
 
     def __call__(self, candidate):
+        name = None
+        if hasattr(candidate, 'name'):
+            # for Subscriptions and Episodes
+            name = getattr(candidate, 'name')
+        else:
+            # for strings
+            name = candidate
+
         for pattern in self.patterns:
-            if fnmatch.fnmatch(candidate, pattern):
+            if fnmatch.fnmatch(name, pattern):
                 return True
         return False
 
     def __repr__(self):
         return '<Wildcard {s.patterns!r}>'.format(s=self)
+
+
+class EnabledFilter(Filter):
+    '''Filter for Subscriptions to clear out disabled entries.'''
+
+    def __call__(self, candidate):
+        if hasattr(candidate, 'enabled'):
+            # Subscriptions
+            return candidate.enabled == True
+        else:
+            # Strings (can't check)
+            return True
+
+    def __repr__(self):
+        return '<EnabledFilter>'
 
 
 class PubdateAfter(Filter):
