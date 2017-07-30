@@ -11,7 +11,7 @@ import pytest
 import os
 
 from podfetch import application
-from podfetch.application import WildcardFilter
+from podfetch.predicate import WildcardFilter
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.model import Episode, require_directory
 

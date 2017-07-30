@@ -45,8 +45,6 @@ import feedparser
 
 from podfetch.fsstorage import FileSystemStorage
 from podfetch.model import Subscription
-from podfetch.predicate import Filter
-from podfetch.predicate import WildcardFilter
 from podfetch import exceptions as ex
 
 
@@ -108,7 +106,8 @@ class Podfetch:
             self.subscriptions_dir,
             self.index_dir,
             self.content_dir,
-            self.cache_dir
+            self.cache_dir,
+            self.ignore
         )
 
         LOG.debug('config_dir: %r.', self.config_dir)
@@ -146,16 +145,8 @@ class Podfetch:
             *optional* a :class:`Filter` instance.
             If given, yields only subscriptions with match the filter.
         '''
-        predicate = predicate or Filter()
-        if self.ignore:
-            predicate = predicate.and_not(WildcardFilter(*self.ignore))
-        for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
-            for name in filenames:
-                if predicate(name):
-                    try:
-                        yield self.subscription_for_name(name)
-                    except Exception as e:  # TODO exception type
-                        LOG.error(e)
+        for s in self._storage.iter_subscriptions(predicate=predicate):
+            yield s
 
     def iter_episodes(self, sub_filter=None):
         '''Iterate over Episodes from all subscriptions.'''

@@ -18,6 +18,8 @@ from podfetch.storage import Storage
 from podfetch.exceptions import StorageError
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.model import Subscription
+from podfetch.predicate import Filter
+from podfetch.predicate import WildcardFilter
 
 
 LOG = logging.getLogger(__name__)
@@ -32,12 +34,14 @@ class FileSystemStorage(Storage):
         config_dir,
         index_dir,
         default_content_dir,
-        cache_dir):
+        cache_dir,
+        ignore):
 
         self.config_dir = config_dir
         self.index_dir = index_dir
         self.default_content_dir = default_content_dir
         self.cache_dir = cache_dir
+        self.ignore = ignore
 
     # Subscriptons ------------------------------------------------------------
 
@@ -66,6 +70,22 @@ class FileSystemStorage(Storage):
         require_directory(os.path.dirname(path))
         with open(path, 'w') as fp:
             cfg.write(fp)
+
+    def iter_subscriptions(self, predicate=None):
+        '''Iterate over all subscriptions matching the given ``predicate``.'''
+        predicate = predicate or Filter()
+
+        if self.ignore:
+            predicate = predicate.and_not(WildcardFilter(*self.ignore))
+
+        for basedir, dirnames, filenames in os.walk(self.config_dir):
+            for name in filenames:
+                if predicate(name):
+                    try:
+                        yield self.load_subscription(name)
+                    except Exception as err:  # TODO exception type
+                        LOG.error(err)
+                        LOG.debug(err, exc_info=True)
 
     def load_subscription(self, name, **kwargs):
         '''Load a single subscription by name.'''
@@ -134,11 +154,6 @@ class FileSystemStorage(Storage):
         # - clean up cache
         # self._cache_forget()
         # delete_if_exists(self.index_file)
-
-    def iter_subscriptions(self, predicate):
-        '''Iterate over all subscriptions matching
-        the given ``predicate``.'''
-        raise StorageError('Not Implemented')
 
     def rename_subscription(self, oldname, newname):
         '''Change the name for an existing subscription.'''
