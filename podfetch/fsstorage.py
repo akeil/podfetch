@@ -128,7 +128,6 @@ class FileSystemStorage(Storage):
         return Subscription(
             name,
             feed_url,
-            self.config_dir,  # config or subscriptions ?
             self.index_dir,
             self.default_content_dir,
             self.cache_dir,

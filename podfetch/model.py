@@ -31,17 +31,9 @@ import tempfile
 from contextlib import closing
 from datetime import datetime
 
-try:
-    from configparser import ConfigParser  # python 3.x
-    from configparser import Error as _ConfigParserError
-except ImportError:
-    from ConfigParser import RawConfigParser  # python 2.x
-    from ConfigParser import Error as _ConfigParserError
-
 import feedparser
 import requests
 
-from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import FeedGoneError
 from podfetch.exceptions import FeedNotFoundError
 from podfetch.timehelper import UTC
@@ -53,16 +45,13 @@ LOG = logging.getLogger(__name__)
 # for generating enclosure-filenames
 DEFAULT_FILENAME_TEMPLATE = '{pub_date}_{id}'
 
-# section in subscription ini's
-SECTION = 'subscription'
-
 # cache keys
 CACHE_ETAG = 'etag'
 CACHE_MODIFIED = 'modified'
 CACHE_ALL = [CACHE_ETAG, CACHE_MODIFIED,]
 
 
-class Subscription(object):
+class Subscription:
     '''Represents a RSS/Atom feed that the user has subscribed.
     ``Subscription`` instances are based on a config-file
     (one for each subscription) and represent the data from that file.
@@ -80,9 +69,6 @@ class Subscription(object):
     :var str feed_url:
         The URL for the podcast-feed.
         Read from the confoig file.
-    :var str config_dir:
-        Base directory where the config file for this subscription is kept.
-        File name for config file is ``/{CONFIG_DIR}/{SUBSCRIPTION_NAME}``.
     :var str index_dir:
         Base directory for the index file of this subscription.
         File name for index file is ``/{INDEX_DIR}/{SUBSCRIPTION_NAME}``.
@@ -109,7 +95,6 @@ class Subscription(object):
     def __init__(self,
         name,
         feed_url,
-        config_dir,
         index_dir,
         default_content_dir,
         cache_dir,
@@ -129,7 +114,6 @@ class Subscription(object):
         self._content_dir = content_dir
         self.cache_dir = cache_dir
         self.max_episodes = max_episodes
-        self.config_dir = config_dir
         self.enabled = enabled
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
@@ -713,17 +697,6 @@ class Episode(object):
 
     def __repr__(self):
         return '<Episode id={s.id!r}>'.format(s=self)
-
-
-def _mk_config_parser():
-    '''Create a config parser instance depending on python version.
-    important point here is not to have interpolation
-    because it conflicts with url escapes (e.g. "%20").
-    '''
-    try:
-        return RawConfigParser()  # py 2.x
-    except NameError:
-        return ConfigParser(interpolation=None)  # py 3.x
 
 
 def _fetch_feed(url, etag=None, modified=None):

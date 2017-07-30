@@ -44,7 +44,7 @@ def sub(tmpdir):
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
     sub = Subscription('name', 'http://example.com',
-        str(config_dir), str(index_dir), str(content_dir), str(cache_dir),
+        str(index_dir), str(content_dir), str(cache_dir),
         supported_content=SUPPORTED_CONTENT
     )
     return sub
@@ -153,7 +153,7 @@ def test_save_and_load_index(sub):
     assert os.path.isfile(sub.index_file)
 
     reloaded_sub = Subscription('name', 'url',
-        'index_dir', 'config_dir', 'content_dir', sub.cache_dir)
+        'index_dir', 'content_dir', sub.cache_dir)
     reloaded_sub._load_index()
     for index in range(5):
         id_ = 'id.{}'.format(index)

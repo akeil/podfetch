@@ -41,7 +41,7 @@ def DISABLED_test_url_escape(tmpdir):
 
     url = 'http://example.com/foo%20bar'
     sub = Subscription('name', url,
-        config_dir, index_dir, content_dir, cache_dir,
+        index_dir, content_dir, cache_dir,
         supported_content=SUPPORTED_CONTENT
     )
     assert sub.feed_url == url  # url unchanged, as set
