@@ -185,22 +185,6 @@ class Subscription(object):
         else:
             delete_if_exists(self.index_file)
 
-    def delete(self, keep_episodes=False):
-        '''Delete this subscription.
-        Includes:
-        - cached header values in ``cache_dir``
-        - index file in ``index_dir``
-        - episode files, if ``keep_episodes`` is *False*
-        - the ``content_dir``, if ``keep_episodes`` is *False*
-
-        Does **not include** the subscription file,
-        which is managed by the application.
-        '''
-        self._cache_forget()
-        delete_if_exists(self.index_file)
-        if not keep_episodes:
-            self.delete_downloaded_files()
-
     def delete_downloaded_files(self):
         for episode in self.episodes:
             episode.delete_local_files()

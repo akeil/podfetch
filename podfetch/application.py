@@ -292,14 +292,14 @@ class Podfetch:
             Defaults to *True*.
         '''
         sub = self.subscription_for_name(name)
-        filename = os.path.join(self.subscriptions_dir, name)
-        sub.delete(keep_episodes=not delete_content)
-        LOG.info('Delete subscription at %r.', filename)
-        try:
-            os.unlink(filename)
-        except os.error as e:
-            if e.errno != os.errno.ENOENT:
-                raise
+        if delete_content:
+            try:
+                sub.delete_downloaded_files()
+            except Exception as err:
+                LOG.error(err)
+                LOG.debug(err, exc_info=True)
+
+        self._storage.delete_subscription(name)
 
         self.run_hooks(SUBSCRIPTION_REMOVED, name, sub.content_dir)
 

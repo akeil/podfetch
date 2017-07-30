@@ -120,37 +120,20 @@ class FileSystemStorage(Storage):
             **kwargs
         )
 
-    def delete_subscription(self, subscription_or_name):
+    def delete_subscription(self, name):
         '''Delete a single subscription.'''
-        name = None
-        if isinstance(subscription_or_name, Subscription):
-            name = subscription_or_name.name
-        else:
-            name = subscription_or_name
-
+        path = self._subscription_path(name)
+        LOG.info('Delete subscription at %r.', path)
+        try:
+            os.unlink(path)
+        except os.error as e:
+            if e.errno != os.errno.ENOENT:
+                raise
         #TODO.
         # - clean up index file
         # - clean up cache
-        # - delete downloaded episode files
-        # - delete the content dir
-        # -
-
-        self._cache_forget()
-        delete_if_exists(self.index_file)
-        if not keep_episodes:
-            for episode in self.episodes:
-                episode.delete_local_files()
-            try:
-                os.rmdir(self.content_dir)
-            except os.error as err:
-                if err.errno == os.errno.ENOENT:
-                    pass
-                elif err.errno == os.errno.ENOTEMPTY:
-                    LOG.warning(('Directory %r was not removed because it'
-                                 ' is not empty.'), self.content_dir)
-                else:
-                    raise
-        raise StorageError('Not Implemented')
+        # self._cache_forget()
+        # delete_if_exists(self.index_file)
 
     def iter_subscriptions(self, predicate):
         '''Iterate over all subscriptions matching
