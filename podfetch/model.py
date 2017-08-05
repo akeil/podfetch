@@ -263,15 +263,11 @@ class Subscription:
             self, len(selected), keep)
 
         deleted_files = []
-        try:
-            for episode in selected:
-                deleted_files += [filename for __, __, filename in episode.files]
-                if not simulate:
-                    episode.delete_local_files()
-                    self.episodes.remove(episode)
-        finally:
+        for episode in selected:
+            deleted_files += [filename for __, __, filename in episode.files]
             if not simulate:
-                storage.save_episodes(self.name, self.episodes)
+                episode.delete_local_files()
+                storage.delete_episode(episode)
 
         if not simulate:
             self._remove_empty_directories()

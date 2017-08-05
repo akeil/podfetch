@@ -229,7 +229,22 @@ class FileSystemStorage(Storage):
         self._save_index_file(name, episode_list)
 
     def delete_episode(self, episode):
-        raise StorageError('Not Implemented')
+        name = episode.subscription.name
+        episode_id = episode.id
+
+        episode_list = self._load_episode_index(name)
+        index_to_remove = None
+        for index, item in enumerate(episode_list):
+            existing_id = item['id']
+            if existing_id == episode_id:
+                index_to_remove = index
+                break
+
+        if index_to_remove is not None:
+            del episode_list[index_to_remove]
+            self._save_index_file(name, episode_list)
+
+        #TODO raise error if not found?
 
     def find_episodes(self, predicate):
         raise StorageError('Not Implemented')
