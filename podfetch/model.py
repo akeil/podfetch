@@ -37,6 +37,8 @@ import requests
 from podfetch.exceptions import FeedGoneError
 from podfetch.exceptions import FeedNotFoundError
 from podfetch.timehelper import UTC
+from podfetch.utils import require_directory
+from podfetch.utils import delete_if_exists
 
 
 LOG = logging.getLogger(__name__)
@@ -833,22 +835,3 @@ def download(download_url, dst_path):
         os.chmod(dst_path, perms)
     finally:
         delete_if_exists(tempdst)
-
-
-#TODO move to "helpers" module
-def require_directory(dirname):
-    '''Create the given directory if it does not exist.'''
-    try:
-        os.makedirs(dirname)
-    except os.error as err:
-        if err.errno != os.errno.EEXIST:
-            raise
-
-
-def delete_if_exists(filename):
-    '''Delete the given filename (absolute path) if it exists.'''
-    try:
-        os.unlink(filename)
-    except os.error as err:
-        if err.errno != os.errno.ENOENT:
-            raise

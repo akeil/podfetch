@@ -436,13 +436,3 @@ def name_from_url(url):
     if name.startswith('www.'):
         name = name[4:]
     return name
-
-
-#TODO move to "helpers" module
-def require_directory(dirname):
-    '''Create the given directory if it does not exist.'''
-    try:
-        os.makedirs(dirname)
-    except os.error as e:
-        if e.errno != os.errno.EEXIST:
-            raise

@@ -22,6 +22,8 @@ from podfetch.model import Episode
 from podfetch.model import Subscription
 from podfetch.predicate import Filter
 from podfetch.predicate import WildcardFilter
+from podfetch.utils import require_directory
+from podfetch.utils import delete_if_exists
 
 
 LOG = logging.getLogger(__name__)
@@ -244,23 +246,3 @@ def _mk_config_parser():
         return RawConfigParser()  # py 2.x
     except NameError:
         return ConfigParser(interpolation=None)  # py 3.x
-
-
-#TODO move to "helpers" module
-def require_directory(dirname):
-    '''Create the given directory if it does not exist.'''
-    try:
-        os.makedirs(dirname)
-    except os.error as err:
-        if err.errno != os.errno.EEXIST:
-            raise
-
-
-#TODO move to "helpers" module
-def delete_if_exists(filename):
-    '''Delete the given filename (absolute path) if it exists.'''
-    try:
-        os.unlink(filename)
-    except os.error as err:
-        if err.errno != os.errno.ENOENT:
-            raise
