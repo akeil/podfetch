@@ -258,7 +258,6 @@ class Podfetch:
         sub = Subscription(uname, url,
             self.index_dir,
             self.content_dir,
-            self.cache_dir,
             content_dir=content_dir,
             max_episodes=max_episodes,
             filename_template=filename_template,

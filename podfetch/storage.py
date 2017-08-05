@@ -7,12 +7,6 @@ A Storage implementation is responsible for persisting data on
 - Episode details
 
 Downloaded media files are stored separately.
-
-TODO: Cache:
-- cache get
-- cache put
-- cache forget
-
 '''
 import logging
 
@@ -64,4 +58,16 @@ class Storage:
         raise StorageError('Not Implemented')
 
     def find_episodes(self, predicate):
+        raise StorageError('Not Implemented')
+
+    # Cache -------------------------------------------------------------------
+
+    def cache_get(self, namespace, key):
+        '''Get a value from the cache.'''
+        raise StorageError('Not Implemented')
+
+    def cache_put(self, namespace, key, value):
+        raise StorageError('Not Implemented')
+
+    def cache_forget(self, namespace, keys=None):
         raise StorageError('Not Implemented')

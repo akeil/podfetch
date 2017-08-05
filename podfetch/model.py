@@ -67,7 +67,7 @@ class Subscription:
         The name of the subscription and also
         the name of its config-file
         and the directory in which downloaded episodes are stored
-        and the name och cache-files generated for this subscription.
+        and the name of cache-files generated for this subscription.
     :var str feed_url:
         The URL for the podcast-feed.
         Read from the confoig file.
@@ -99,7 +99,6 @@ class Subscription:
         feed_url,
         index_dir,
         default_content_dir,
-        cache_dir,
         title=None,
         max_episodes=-1,
         content_dir=None,
@@ -114,7 +113,6 @@ class Subscription:
         self.index_dir = index_dir
         self._default_content_dir = default_content_dir
         self._content_dir = content_dir
-        self.cache_dir = cache_dir
         self.max_episodes = max_episodes
         self.enabled = enabled
         self.filename_template = filename_template
@@ -170,8 +168,8 @@ class Subscription:
         '''
         feed = _fetch_feed(
             self.feed_url,
-            etag=self._cache_get(CACHE_ETAG),
-            modified=self._cache_get(CACHE_MODIFIED),
+            etag=storage.cache_get(self.name, CACHE_ETAG),
+            modified=storage.cache_get(self.name, CACHE_MODIFIED),
         )
         LOG.debug('Feed status is %s', feed.status)
 
@@ -193,8 +191,8 @@ class Subscription:
 
         # store etag, modified after *successful* update
         if entries_ok:
-            self._cache_put(CACHE_ETAG, feed.get('etag'))
-            self._cache_put(CACHE_MODIFIED, feed.get('modified'))
+            storage.cache_put(self.name, CACHE_ETAG, feed.get('etag'))
+            storage.cache_put(self.name, CACHE_MODIFIED, feed.get('modified'))
 
     def _update_entries(self, feed, storage, force=False):
         '''Download content for all feed entries.
@@ -359,47 +357,6 @@ class Subscription:
                 episode.move_local_files()
         finally:
             storage.save_episodes(self.name, self.episodes)
-
-    # cache ------------------------------------------------------------------
-
-    def _cache_get(self, key):
-        result = None
-        try:
-            with open(self._cache_path(key)) as cachefile:
-                result = cachefile.read()
-        except IOError as err:
-            if err.errno != os.errno.ENOENT:
-                raise
-
-        return result or None  # convert '' to None
-
-    def _cache_put(self, key, value):
-        path = self._cache_path(key)
-        forget = not bool(value)
-        if not forget:
-            try:
-                require_directory(os.path.dirname(path))
-                with open(path, 'w') as cachefile:
-                    cachefile.write(value)
-            except Exception as err:
-                LOG.error('Error writing cache file: %r', err)
-                forget = True
-
-        # value was empty or writing failed
-        if forget:
-            self._cache_forget(key)
-
-    def _cache_forget(self, *keys):
-        '''Remove entries for the given cache keys.
-        Remove all entries if no key is given.'''
-        for key in keys or CACHE_ALL:
-            try:
-                delete_if_exists(self._cache_path(key))
-            except Exception:
-                LOG.error('Failed to delete cache %r of %r.', key, self.name)
-
-    def _cache_path(self, key):
-        return os.path.join(self.cache_dir, '{}.{}'.format(self.name, key))
 
     def __repr__(self):
         return '<Subscription name={s.name!r}>'.format(s=self)

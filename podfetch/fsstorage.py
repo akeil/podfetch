@@ -137,7 +137,6 @@ class FileSystemStorage(Storage):
             feed_url,
             self.index_dir,
             self.default_content_dir,
-            self.cache_dir,
             title=get('title'),
             max_episodes=get('max_episodes', default=-1, fmt='int'),
             enabled=get('enabled', default=True, fmt='bool'),
@@ -162,8 +161,7 @@ class FileSystemStorage(Storage):
 
         delete_if_exists(self._index_path(name))
 
-        #TODO clean up cache
-        # self._cache_forget()
+        self.cache_forget(name)
 
     def rename_subscription(self, oldname, newname):
         '''Change the name for an existing subscription.'''
@@ -235,6 +233,49 @@ class FileSystemStorage(Storage):
 
     def find_episodes(self, predicate):
         raise StorageError('Not Implemented')
+
+    # Cache -------------------------------------------------------------------
+
+    def cache_get(self, namespace, key):
+        '''Get a value from the cache.'''
+        result = None
+        try:
+            with open(self._cache_path(namespace, key)) as cachefile:
+                result = cachefile.read()
+        except IOError as err:
+            if err.errno != os.errno.ENOENT:
+                raise
+
+        return result or None  # convert '' to None
+
+    def cache_put(self, namespace, key, value):
+        path = self._cache_path(namespace, key)
+        forget = not bool(value)
+        if not forget:
+            try:
+                require_directory(os.path.dirname(path))
+                with open(path, 'w') as cachefile:
+                    cachefile.write(value)
+            except Exception as err:
+                LOG.error('Error writing cache file: %r', err)
+                forget = True
+
+        # value was empty or writing failed
+        if forget:
+            self._cache_forget(namespace, key)
+
+    def cache_forget(self, namespace, keys=None):
+        '''Remove entries for the given cache keys.'''
+
+        #TODO: if keys is empty, remove all
+        for key in keys:
+            try:
+                delete_if_exists(self._cache_path(namespace, key))
+            except Exception:
+                LOG.error('Failed to delete cache %r of %r.', key, self.name)
+
+    def _cache_path(self, namespace, key):
+        return os.path.join(self.cache_dir, '{}.{}'.format(namespace, key))
 
 
 def _mk_config_parser():
