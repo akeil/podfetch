@@ -205,15 +205,15 @@ def test_update_feed_unchanged(storage, sub, monkeypatch):
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
-    sub._cache_put('etag', 'etag-value')
-    sub._cache_put('modified', 'modified-value')
+    storage.cache_put(sub.name, 'etag', 'etag-value')
+    storage.cache_put(sub.name, 'modified', 'modified-value')
     sub._update_entries = mock.MagicMock()
 
     sub.update(storage)
 
     assert not sub._update_entries.called
-    assert sub._cache_get('etag') == 'etag-value'
-    assert sub._cache_get('modified') == 'modified-value'
+    assert storage.cache_get(sub.name, 'etag') == 'etag-value'
+    assert storage.cache_get(sub.name, 'modified') == 'modified-value'
 
 
 def test_forced_update_feed_unchanged(storage, sub, monkeypatch):
@@ -221,8 +221,8 @@ def test_forced_update_feed_unchanged(storage, sub, monkeypatch):
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
-    sub._cache_put('etag', 'etag-value')
-    sub._cache_put('modified', 'modified-value')
+    storage.cache_put(sub.name, 'etag', 'etag-value')
+    storage.cache_put(sub.name, 'modified', 'modified-value')
 
     sub.update(storage, force=True)
 
@@ -237,15 +237,15 @@ def test_update_store_feed_headers(storage, sub, monkeypatch):
         return_modified='new-modified')
     with_mock_download(monkeypatch)
 
-    sub._cache_put('etag', 'initial-etag')
-    sub._cache_put('modified', 'intial-modified')
+    storage.cache_put(sub.name, 'etag', 'initial-etag')
+    storage.cache_put(sub.name, 'modified', 'intial-modified')
     sub._update_entries = mock.MagicMock()
 
     sub.update(storage)
 
     assert sub._update_entries.called
-    assert sub._cache_get('etag') == 'new-etag'
-    assert sub._cache_get('modified') == 'new-modified'
+    assert storage.cache_get(sub.name, 'etag') == 'new-etag'
+    assert storage.cache_get(sub.name, 'modified') == 'new-modified'
 
 
 def test_failed_update_no_store_feed_headers(storage, sub, monkeypatch):
@@ -255,15 +255,15 @@ def test_failed_update_no_store_feed_headers(storage, sub, monkeypatch):
     with_dummy_feed(monkeypatch, return_etag='new-etag',
         return_modified='new-modified')
     with_mock_download(monkeypatch)
-    sub._cache_put('etag', 'initial-etag')
-    sub._cache_put('modified', 'initial-modified')
+    storage.cache_put(sub.name, 'etag', 'initial-etag')
+    storage.cache_put(sub.name, 'modified', 'initial-modified')
     sub._update_entries = mock.MagicMock(side_effect=ValueError)
 
     with pytest.raises(ValueError):
         sub.update(storage)
 
-    assert sub._cache_get('etag') == 'initial-etag'
-    assert sub._cache_get('modified') == 'initial-modified'
+    assert storage.cache_get(sub.name, 'etag') == 'initial-etag'
+    assert storage.cache_get(sub.name, 'modified') == 'initial-modified'
 
 
 def test_update_feed_moved_permanently(storage, sub, monkeypatch):
@@ -280,8 +280,8 @@ def test_update_feed_moved_permanently(storage, sub, monkeypatch):
 
 
 def test_update_error_fetching_feed(storage, sub, monkeypatch):
-    sub._cache_put('etag', 'initial-etag')
-    sub._cache_put('modified', 'initial-modified')
+    storage.cache_put(sub.name, 'etag', 'initial-etag')
+    storage.cache_put(sub.name, 'modified', 'initial-modified')
 
     def mock_fetch_feed(url, etag=None, modified=None):
         raise FeedNotFoundError
@@ -291,8 +291,8 @@ def test_update_error_fetching_feed(storage, sub, monkeypatch):
     with pytest.raises(FeedNotFoundError):
         sub.update(storage)
 
-    etag = sub._cache_get('etag')
-    modified = sub._cache_get('modified')
+    etag = storage.cache_get(sub.name, 'etag')
+    modified = storage.cache_get(sub.name, 'modified')
     assert etag == 'initial-etag'
     assert modified == 'initial-modified'
 
