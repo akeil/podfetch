@@ -171,3 +171,22 @@ def DISABLED_test_save_index_create_directory(sub, tmpdir):
     sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT))
     sub._save_index()
     assert os.path.isfile(os.path.join(sub.index_dir, 'name.json'))
+
+
+def DISABLED_test_write_read_cache(sub):
+    '''Write to cache and retrieve correctly.'''
+    data = {
+        'foo': 'xyz',
+        'bar': 'abc',
+        'None': None,
+    }
+    for k, v in data.items():
+        sub._cache_put(k, v)
+
+    for k in data.keys():
+        assert sub._cache_get(k) == data[k]
+
+
+def DISABLED_test_write_read_cache_empty(sub):
+    '''Reading non-existent key from cache should be None.'''
+    assert sub._cache_get('does-not-exist') is None

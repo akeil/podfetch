@@ -37,6 +37,38 @@ SUPPORTED_CONTENT = {
 }
 
 
+@pytest.fixture(scope='session')
+def storage():
+    import shutil
+    import tempfile
+    from podfetch.fsstorage import FileSystemStorage
+
+    basedir = tempfile.mkdtemp()
+
+    def subdir(name):
+        path = os.path.join(basedir, name)
+        os.mkdir(path)
+        return path
+
+
+    config_dir = subdir('config')
+    index_dir = subdir('index')
+    content_dir = subdir('content')
+    cache_dir = subdir('cache')
+    ignore = []
+
+    yield FileSystemStorage(
+        str(config_dir),
+        str(index_dir),
+        str(content_dir),
+        str(cache_dir),
+        ignore
+    )
+
+    # teardown
+    shutil.rmtree(basedir)
+
+
 @pytest.fixture
 def sub(tmpdir):
     config_dir = tmpdir.mkdir('config')
@@ -44,7 +76,8 @@ def sub(tmpdir):
     content_dir = tmpdir.mkdir('content')
     cache_dir = tmpdir.mkdir('cache')
     sub = Subscription('name', 'http://example.com',
-        str(index_dir), str(content_dir), str(cache_dir),
+        str(index_dir),
+        str(content_dir),
         supported_content=SUPPORTED_CONTENT
     )
     return sub
@@ -141,26 +174,7 @@ class DummyEnclosure(_Dummy):
 # Subscription Tests ----------------------------------------------------------
 
 
-def test_write_read_cache(sub):
-    '''Write to cache and retrieve correctly.'''
-    data = {
-        'foo': 'xyz',
-        'bar': 'abc',
-        'None': None,
-    }
-    for k, v in data.items():
-        sub._cache_put(k, v)
-
-    for k in data.keys():
-        assert sub._cache_get(k) == data[k]
-
-
-def test_write_read_cache_empty(sub):
-    '''Reading non-existent key from cache should be None.'''
-    assert sub._cache_get('does-not-exist') is None
-
-
-def test_apply_updates_max_episodes(sub, monkeypatch):
+def test_apply_updates_max_episodes(storage, sub, monkeypatch):
     '''in apply updates, max entries to be processed
     is max_episodes for this subscription.
     '''
@@ -169,11 +183,11 @@ def test_apply_updates_max_episodes(sub, monkeypatch):
 
     sub.max_episodes = 1
     sub._process_feed_entry = mock.MagicMock()
-    sub.update()
+    sub.update(storage)
     assert sub._process_feed_entry.call_count == 1
 
 
-def test_apply_updates_error_handling(sub, monkeypatch):
+def test_apply_updates_error_handling(storage, sub, monkeypatch):
     '''Error for one feed entry should not stop us.'''
     # we rely on the dummy feed having more than one item
     with_dummy_feed(monkeypatch)
@@ -181,11 +195,11 @@ def test_apply_updates_error_handling(sub, monkeypatch):
 
     mock_download = mock.MagicMock(side_effect=ValueError)
     monkeypatch.setattr(Episode, 'download', mock_download)
-    sub.update()
+    sub.update(storage)
     assert Episode.download.call_count > 1
 
 
-def test_update_feed_unchanged(sub, monkeypatch):
+def test_update_feed_unchanged(storage, sub, monkeypatch):
     '''When the feed is not modified, update() should return OK
     but ot update.'''
     with_dummy_feed(monkeypatch, status=304)
@@ -195,7 +209,6 @@ def test_update_feed_unchanged(sub, monkeypatch):
     sub._cache_put('modified', 'modified-value')
     sub._update_entries = mock.MagicMock()
 
-    storage = None
     sub.update(storage)
 
     assert not sub._update_entries.called
@@ -203,7 +216,7 @@ def test_update_feed_unchanged(sub, monkeypatch):
     assert sub._cache_get('modified') == 'modified-value'
 
 
-def test_forced_update_feed_unchanged(sub, monkeypatch):
+def test_forced_update_feed_unchanged(storage, sub, monkeypatch):
     '''Ignore unchanged feed when using ``force``.'''
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
@@ -211,13 +224,12 @@ def test_forced_update_feed_unchanged(sub, monkeypatch):
     sub._cache_put('etag', 'etag-value')
     sub._cache_put('modified', 'modified-value')
 
-    storage = None
     sub.update(storage, force=True)
 
     assert len(sub.episodes) > 0
 
 
-def test_update_store_feed_headers(sub, monkeypatch):
+def test_update_store_feed_headers(storage, sub, monkeypatch):
     '''After a successful update, we must remember
     the ``etag`` and ``modified`` header.
     '''
@@ -229,7 +241,6 @@ def test_update_store_feed_headers(sub, monkeypatch):
     sub._cache_put('modified', 'intial-modified')
     sub._update_entries = mock.MagicMock()
 
-    storage = None
     sub.update(storage)
 
     assert sub._update_entries.called
@@ -237,7 +248,7 @@ def test_update_store_feed_headers(sub, monkeypatch):
     assert sub._cache_get('modified') == 'new-modified'
 
 
-def test_failed_update_no_store_feed_headers(sub, monkeypatch):
+def test_failed_update_no_store_feed_headers(storage, sub, monkeypatch):
     '''After an error in feed-processing update, we must NOT remember
     the ``etag`` and ``modified`` header.
     '''
@@ -248,7 +259,6 @@ def test_failed_update_no_store_feed_headers(sub, monkeypatch):
     sub._cache_put('modified', 'initial-modified')
     sub._update_entries = mock.MagicMock(side_effect=ValueError)
 
-    storage = None
     with pytest.raises(ValueError):
         sub.update(storage)
 
@@ -256,21 +266,20 @@ def test_failed_update_no_store_feed_headers(sub, monkeypatch):
     assert sub._cache_get('modified') == 'initial-modified'
 
 
-def test_update_feed_moved_permanently(sub, monkeypatch):
+def test_update_feed_moved_permanently(storage, sub, monkeypatch):
     new_url='http://example.com/new'
     with_dummy_feed(monkeypatch, status=301, href=new_url)
     with_mock_download(monkeypatch)
 
     sub._update_entries = mock.MagicMock()
 
-    storage = None
     sub.update(storage)
 
     assert sub._update_entries.called
     assert sub.feed_url == new_url
 
 
-def test_update_error_fetching_feed(sub, monkeypatch):
+def test_update_error_fetching_feed(storage, sub, monkeypatch):
     sub._cache_put('etag', 'initial-etag')
     sub._cache_put('modified', 'initial-modified')
 
@@ -278,8 +287,6 @@ def test_update_error_fetching_feed(sub, monkeypatch):
         raise FeedNotFoundError
 
     monkeypatch.setattr(model, '_fetch_feed', mock_fetch_feed)
-
-    storage = None
 
     with pytest.raises(FeedNotFoundError):
         sub.update(storage)
@@ -311,7 +318,7 @@ def test_downloaded_file_perms(tmpdir, monkeypatch):
     assert mode & stat.S_IROTH  # other read
 
 
-def test_download_error(sub, monkeypatch):
+def test_download_error(storage, sub, monkeypatch):
     '''if download failed, episode should be present but w/o local file'''
     with_dummy_feed(monkeypatch)
 
@@ -322,7 +329,7 @@ def test_download_error(sub, monkeypatch):
     assert len(sub.episodes) == 0
 
     monkeypatch.setattr(model, 'download', failing_download)
-    sub.update()
+    sub.update(storage)
 
     assert len(sub.episodes) > 1
     assert not sub.episodes[0].files[0][2]  # no local file
@@ -356,11 +363,11 @@ def outdated_test_generate_enclosure_filename_template(sub):
     assert gen(None).startswith('entry')
 
 
-def test_purge(sub, monkeypatch):
+def test_purge(storage, sub, monkeypatch):
     '''Assert that the right episodes are deleted with purge'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
-    sub.update()
+    sub.update(storage)
     sub.max_episodes = 1
 
     # relies on common.FEED_DATA having exactly two items
@@ -373,12 +380,12 @@ def test_purge(sub, monkeypatch):
     assert len(os.listdir(sub.content_dir)) == 1
 
 
-def test_purge_simulate(sub, monkeypatch):
+def test_purge_simulate(storage, sub, monkeypatch):
     '''Assert that no episodes are deleted with purge
     in simulation mode'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
-    sub.update()
+    sub.update(storage)
     sub.max_episodes = 1
 
     # relies on common.FEED_DATA having exactly two items
@@ -391,13 +398,12 @@ def test_purge_simulate(sub, monkeypatch):
     assert len(os.listdir(sub.content_dir)) == 2
 
 
-def test_purge_keepall(sub, monkeypatch):
+def test_purge_keepall(storage, sub, monkeypatch):
     '''Assert that no episodes are deleted with purge
     if max_episodes < 1'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
 
-    storage = None
     sub.update(storage)
 
     sub.max_episodes = -1
