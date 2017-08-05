@@ -391,7 +391,7 @@ class Podfetch:
         # special case - name is also the filename
         old_filename = os.path.join(self.subscriptions_dir, sub.name)
         if name is not None:
-            sub.rename(name, move_files=move_files)
+            sub.rename(self._storage, name, move_files=move_files)
             self._storage.save_subscription(sub)
 
         new_filename = os.path.join(self.subscriptions_dir, sub.name)

@@ -302,7 +302,7 @@ class Subscription:
                 else:
                     raise
 
-    def rename(self, newname, move_files=False):
+    def rename(self, storage, newname, move_files=False):
         '''Rename this subscription.
 
         This will *always* rename files for internal use
@@ -312,30 +312,13 @@ class Subscription:
         '''
         LOG.info('Rename subscription %r -> %r.', self.name, newname)
 
-        LOG.info('Forget cache entries.')
-        cached = {}
-        for key in CACHE_ALL:
-            cached[key] = self._cache_get(key)
-        self._cache_forget(*CACHE_ALL)
+        storage.rename_subscription(self.name, newname)
 
-        # TODO: get index file
-        old_index_file = self.index_file
         old_content_dir = self.content_dir
 
         self.name = newname
         if move_files:
             self.rename_files()
-
-        # index was loaded - save it to the new name
-        LOG.info('Save index under new name %r.', self.index_file)
-        #TODO: self._save_index()
-        if self.index_file != old_index_file:
-            LOG.info('Delete old index file %r.', old_index_file)
-            os.unlink(old_index_file)
-
-        LOG.info('Save cache under new name.')
-        for key, value in cached.items():
-            self._cache_put(key, value)
 
         try:
             os.rmdir(old_content_dir)

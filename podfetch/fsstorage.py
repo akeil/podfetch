@@ -165,7 +165,21 @@ class FileSystemStorage(Storage):
 
     def rename_subscription(self, oldname, newname):
         '''Change the name for an existing subscription.'''
-        raise StorageError('Not Implemented')
+        src_path = self._subscription_path(oldname)
+        dst_path = self._subscription_path(newname)
+
+        src_index = self._index_path(oldname)
+        dst_index = self._index_path(newname)
+
+        if os.path.exists(dst_path):
+            raise ValueError('New name %r already exists' % newname)
+
+        LOG.info('Move %r to %r', src_path, dst_path)
+        shutil.move(src_path, dst_path)
+        LOG.debug('Move %r to %r', src_index, dst_index)
+        shutil.move(src_index, dst_index)
+
+        self._cache_rename(oldname, newname)
 
     # Episodes ----------------------------------------------------------------
 
@@ -281,8 +295,9 @@ class FileSystemStorage(Storage):
 
     def cache_forget(self, namespace, keys=None):
         '''Remove entries for the given cache keys.'''
+        if keys is None:
+            keys = [k for k in self._cache_iter(namespace)]
 
-        #TODO: if keys is empty, remove all
         for key in keys:
             try:
                 delete_if_exists(self._cache_path(namespace, key))
@@ -291,6 +306,21 @@ class FileSystemStorage(Storage):
 
     def _cache_path(self, namespace, key):
         return os.path.join(self.cache_dir, '{}.{}'.format(namespace, key))
+
+    def _cache_iter(self, namespace):
+        predicate = namespace + '.'
+        for name in os.listdir(path=self.cache_dir):
+            if name.startswith(predicate):
+                if os.isfile(os.path.join(self.cache_dir, name)):
+                    yield name[len(predicate):]
+
+    def _cache_rename(self, old_namespace, new_namespace):
+        keys = [k for k in self._cache_iter(old_namespace)]
+        for key in keys:
+            src = self._cache_path(old_namespace, key)
+            dst = self._cache_path(new_namespace, key)
+            LOG.debug('Move %r to %r', src, dst)
+            shutil.move(src, dst)
 
 
 def _mk_config_parser():
