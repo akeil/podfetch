@@ -71,12 +71,10 @@ def storage():
 
 @pytest.fixture
 def sub(tmpdir):
-    config_dir = tmpdir.mkdir('config')
-    index_dir = tmpdir.mkdir('index')
     content_dir = tmpdir.mkdir('content')
-    cache_dir = tmpdir.mkdir('cache')
-    sub = Subscription('name', 'http://example.com',
-        str(index_dir),
+    sub = Subscription(
+        'name',
+        'http://example.com',
         str(content_dir),
         supported_content=SUPPORTED_CONTENT
     )

@@ -71,9 +71,6 @@ class Subscription:
     :var str feed_url:
         The URL for the podcast-feed.
         Read from the confoig file.
-    :var str index_dir:
-        Base directory for the index file of this subscription.
-        File name for index file is ``/{INDEX_DIR}/{SUBSCRIPTION_NAME}``.
     :var str default_content_dir:
         The default content directory for the application.
         Individual subscriptions download to
@@ -97,7 +94,6 @@ class Subscription:
     def __init__(self,
         name,
         feed_url,
-        index_dir,
         default_content_dir,
         title=None,
         max_episodes=-1,
@@ -110,7 +106,6 @@ class Subscription:
         self.name = name
         self.feed_url = feed_url
         self.title = title or name
-        self.index_dir = index_dir
         self._default_content_dir = default_content_dir
         self._content_dir = content_dir
         self.max_episodes = max_episodes

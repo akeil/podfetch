@@ -135,7 +135,6 @@ class FileSystemStorage(Storage):
         sub = Subscription(
             name,
             feed_url,
-            self.index_dir,
             self.default_content_dir,
             title=get('title'),
             max_episodes=get('max_episodes', default=-1, fmt='int'),

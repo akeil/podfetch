@@ -256,7 +256,6 @@ class Podfetch:
             name = name_from_url(url)
         uname = self._make_unique_name(name)
         sub = Subscription(uname, url,
-            self.index_dir,
             self.content_dir,
             content_dir=content_dir,
             max_episodes=max_episodes,
