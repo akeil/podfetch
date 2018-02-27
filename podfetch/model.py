@@ -377,7 +377,7 @@ class Subscription(object):
                 log.error(('Failed to update episode {epi}.'
                            ' Error was {err!r}').format(epi=episode, err=err))
 
-            return not has_errors
+        return not has_errors
 
     def _episode_for_id(self, id_):
         for episode in self.episodes:
