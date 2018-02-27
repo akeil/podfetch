@@ -230,7 +230,7 @@ class Subscription:
                     LOG.debug(err, exc_info=True)
                     has_errors = True
 
-            return not has_errors
+        return not has_errors
 
     def _episode_for_id(self, id_):
         for episode in self.episodes:
