@@ -220,7 +220,7 @@ class Podfetch:
                     name='update-thread-{}'.format(index),
                     daemon=True,
                     target=work,
-                ).run()
+                ).start()
                 LOG.debug('Started update-thread-%s.', index)
         else:
             work()
