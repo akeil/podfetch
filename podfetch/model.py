@@ -112,7 +112,7 @@ class Subscription:
         self.enabled = enabled
         self.filename_template = filename_template
         self.app_filename_template = app_filename_template
-        self.supported_content = supported_content
+        self.supported_content = supported_content or {}
         self.episodes = []
 
     @property
@@ -204,9 +204,10 @@ class Subscription:
             if episode:
                 pass
             else:
-                LOG.debug('Got new episode: %r.', episode)
+                LOG.debug('Got new episode: %r.', id_)
                 episode = Episode.from_entry(
                     self, self.supported_content, entry)
+
                 if episode.has_attachments:
                     self.episodes.append(episode)
                     should_save = True

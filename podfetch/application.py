@@ -146,6 +146,7 @@ class Podfetch:
             If given, yields only subscriptions with match the filter.
         '''
         for s in self._storage.iter_subscriptions(predicate=predicate):
+            s.supported_content = self.supported_content
             yield s
 
     def iter_episodes(self, sub_filter=None):
