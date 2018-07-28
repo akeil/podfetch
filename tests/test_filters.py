@@ -8,10 +8,20 @@ import pytest
 import os
 from datetime import date
 
-from podfetch.application import Filter
-from podfetch.application import WildcardFilter
-from podfetch.application import PubdateAfter
-from podfetch.application import PubdateBefore
+from podfetch.predicate import Filter
+from podfetch.predicate import NameFilter
+from podfetch.predicate import WildcardFilter
+from podfetch.predicate import EnabledFilter
+from podfetch.predicate import PubdateAfter
+from podfetch.predicate import PubdateBefore
+
+
+class _DummySubscription:
+
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', 'dummy')
+        self.enabled = kwargs.get('enabled', True)
+
 
 def test_basic():
     predicate = Filter()
@@ -31,6 +41,22 @@ def test_wildcards():
     assert predicate('baz')  # ba[rz]
     assert not predicate('bax')
     assert not predicate('anything-else')
+
+
+def test_poly():
+    # make sure filters work on subscription instances and strings
+    predicate = NameFilter('foo')
+    assert predicate(_DummySubscription(name='foo')) == predicate('foo')
+    assert predicate(_DummySubscription(name='bar')) == predicate('bat')
+
+
+def test_enabled():
+    predicate = EnabledFilter()
+    enabled = _DummySubscription(enabled=True)
+    disabled = _DummySubscription(enabled=False)
+    assert predicate(enabled)
+    assert not predicate(disabled)
+    assert predicate('some string')
 
 
 class _Dummy:

@@ -26,11 +26,9 @@ Context:
     subscription.content_dir
 
 '''
-import fnmatch
 import logging
 import os
 import threading
-from datetime import date
 from pkg_resources import iter_entry_points
 
 try:
@@ -45,11 +43,12 @@ except ImportError:
 
 import feedparser
 
+from podfetch.fsstorage import FileSystemStorage
 from podfetch.model import Subscription
 from podfetch import exceptions as ex
 
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 # events ----------------------------------------------------------------------
@@ -69,7 +68,7 @@ EP_EVENTS = 'podfetch.events'
 # application -----------------------------------------------------------------
 
 
-class Podfetch(object):
+class Podfetch:
     '''The main application class.
     Used to manage and update subscriptions.
 
@@ -103,14 +102,22 @@ class Podfetch(object):
         self.ignore = ignore
         self.supported_content = supported_content or {}
 
-        log.debug('config_dir: {!r}.'.format(self.config_dir))
-        log.debug('index_dir: {!r}'.format(self.index_dir))
-        log.debug('content_dir: {!r}.'.format(self.content_dir))
-        log.debug('cache_dir: {!r}.'.format(self.cache_dir))
-        log.debug('filename_template: {!r}.'.format(self.filename_template))
-        log.debug('update_threads: {}'.format(self.update_threads))
-        log.debug('ignore: {!r}'.format(self.ignore))
-        log.debug('supported_content: {}'.format(', '.join(self.supported_content.keys())))
+        self._storage = FileSystemStorage(
+            self.subscriptions_dir,
+            self.index_dir,
+            self.content_dir,
+            self.cache_dir,
+            self.ignore
+        )
+
+        LOG.debug('config_dir: %r.', self.config_dir)
+        LOG.debug('index_dir: %r', self.index_dir)
+        LOG.debug('content_dir: %r.', self.content_dir)
+        LOG.debug('cache_dir: %r.', self.cache_dir)
+        LOG.debug('filename_template: %r.', self.filename_template)
+        LOG.debug('update_threads: %s', self.update_threads)
+        LOG.debug('ignore: %r', self.ignore)
+        LOG.debug('supported_content: %s', ', '.join(self.supported_content.keys()))
 
     def subscription_for_name(self, name):
         '''Get the :class:`model.Subscription` with the given name.
@@ -123,13 +130,11 @@ class Podfetch(object):
             NoSubscriptionError if no subscription with that name
             exists
         '''
-        filename = os.path.join(self.subscriptions_dir, name)
-        sub = Subscription.from_file(
-            filename, self.index_dir, self.content_dir, self.cache_dir,
+        return self._storage.load_subscription(
+            name,
             app_filename_template=self.filename_template,
             supported_content=self.supported_content,
         )
-        return sub
 
     def iter_subscriptions(self, predicate=None):
         '''Iterate over all configured subscriptions.
@@ -140,16 +145,16 @@ class Podfetch(object):
             *optional* a :class:`Filter` instance.
             If given, yields only subscriptions with match the filter.
         '''
-        predicate = predicate or Filter()
-        if self.ignore:
-            predicate = predicate.and_not(WildcardFilter(*self.ignore))
-        for basedir, dirnames, filenames in os.walk(self.subscriptions_dir):
-            for name in filenames:
-                if predicate(name):
-                    try:
-                        yield self.subscription_for_name(name)
-                    except Exception as e:  # TODO exception type
-                        log.error(e)
+        for s in self._storage.iter_subscriptions(predicate=predicate):
+            s.supported_content = self.supported_content
+            s.app_filename_template = self.filename_template
+            yield s
+
+    def iter_episodes(self, sub_filter=None):
+        '''Iterate over Episodes from all subscriptions.'''
+        for subscription in self.iter_subscriptions(predicate=sub_filter):
+            for episode in subscription.episodes:
+                yield episode
 
     def update(self, predicate=None, force=False):
         '''Fetch new episodes for the given ``subscription_names``.
@@ -188,14 +193,15 @@ class Podfetch(object):
                     done = True
 
         def update_one(subscription, force=False):
-            log.info('Update {!r}.'.format(subscription.name))
+            LOG.info('Update %r.', subscription.name)
             initial_episode_count = len(subscription.episodes)
             try:
-                subscription.update(force=force)
+                subscription.update(self._storage, force=force)
+                self._storage.save_subscription(subscription)
             except Exception as err:
-                log.error(('Failed to fetch feed {n!r}. Error was:'
-                    ' {e}').format(n=subscription.name, e=err))
-                log.debug(err, exc_info=True)
+                LOG.error('Failed to fetch feed %r. Error was: %s',
+                    subscription.name, err)
+                LOG.debug(err, exc_info=True)
             finally:
                 tasks.task_done()
 
@@ -210,14 +216,14 @@ class Podfetch(object):
         use_threading = num_tasks > 1 and num_workers > 1
 
         if use_threading:
-            log.debug('Using {} update-threads.'.format(num_workers))
+            LOG.debug('Using %s update-threads.', num_workers)
             for index in range(1, num_workers+1):
                 threading.Thread(
                     name='update-thread-{}'.format(index),
                     daemon=True,
                     target=work,
-                ).run()
-                log.debug('Started update-thread-{}.'.format(index))
+                ).start()
+                LOG.debug('Started update-thread-%s.', index)
         else:
             work()
 
@@ -252,17 +258,14 @@ class Podfetch(object):
             name = name_from_url(url)
         uname = self._make_unique_name(name)
         sub = Subscription(uname, url,
-            self.subscriptions_dir,
-            self.index_dir,
             self.content_dir,
-            self.cache_dir,
             content_dir=content_dir,
             max_episodes=max_episodes,
             filename_template=filename_template,
             app_filename_template=self.filename_template,
             supported_content=self.supported_content,
         )
-        sub.save()
+        self._storage.save_subscription(sub)
         self.run_hooks(SUBSCRIPTION_ADDED, sub.name, sub.content_dir)
         return sub
 
@@ -279,14 +282,14 @@ class Podfetch(object):
             Defaults to *True*.
         '''
         sub = self.subscription_for_name(name)
-        filename = os.path.join(self.subscriptions_dir, name)
-        sub.delete(keep_episodes=not delete_content)
-        log.info('Delete subscription at {!r}.'.format(filename))
-        try:
-            os.unlink(filename)
-        except os.error as e:
-            if e.errno != os.errno.ENOENT:
-                raise
+        if delete_content:
+            try:
+                sub.delete_downloaded_files()
+            except Exception as err:
+                LOG.error(err)
+                LOG.debug(err, exc_info=True)
+
+        self._storage.delete_subscription(name)
 
         self.run_hooks(SUBSCRIPTION_REMOVED, name, sub.content_dir)
 
@@ -308,22 +311,21 @@ class Podfetch(object):
             counter += 1
 
         if name != original_name:
-            log.info(
-                'Changed name from {!r} to {!r}.'.format(original_name, name))
+            LOG.info('Changed name from %r to %r.', original_name, name)
 
         return name
 
     def purge_all(self, simulate=False):
         deleted_files = []
         for subscription in self.iter_subscriptions():
-            deleted_files += subscription.purge(simulate=simulate)
-            subscription.save()
+            deleted_files += subscription.purge(self._storage, simulate=simulate)
+            self._storage.save_subscription(subscription)
         return deleted_files
 
     def purge_one(self, name, simulate=False):
         subscription = self.subscription_for_name(name)
-        deleted_files = subscription.purge(simulate=simulate)
-        subscription.save()
+        deleted_files = subscription.purge(self._storage, simulate=simulate)
+        self._storage.save_subscription(subscription)
         return deleted_files
 
     def edit(self, subscription_name, name=None, url=None, title=None,
@@ -357,7 +359,7 @@ class Podfetch(object):
             *optional*, rename files for already downloaded episodes
             if for example the ``filename_template`` is changed.
         '''
-        log.debug('Edit subscription {n!r}.'.format(n=subscription_name))
+        LOG.debug('Edit subscription %r.', subscription_name)
         sub = self.subscription_for_name(subscription_name)
         could_rename_files = False
 
@@ -385,164 +387,37 @@ class Podfetch(object):
         if could_rename_files and move_files:
             sub.rename_files()
 
-        sub.save()
+        self._storage.save_subscription(sub)
 
         # special case - name is also the filename
         old_filename = os.path.join(self.subscriptions_dir, sub.name)
         if name is not None:
-            sub.rename(name, move_files=move_files)
+            sub.rename(self._storage, name, move_files=move_files)
+            self._storage.save_subscription(sub)
 
         new_filename = os.path.join(self.subscriptions_dir, sub.name)
         if old_filename != new_filename:
             # we did save successfully, so the new file exists
-            log.info('Delete old subscription {f!r}.'.format(f=old_filename))
+            LOG.info('Delete old subscription %r.', old_filename)
             os.unlink(old_filename)
 
     def run_hooks(self, event, *args):
         '''Run hooks for the given ``event``.'''
-        log.debug('Run hooks for event {e!r}'.format(e=event))
+        LOG.debug('Run hooks for event %r', event)
         for ep in iter_entry_points(EP_EVENTS, name=event):
             try:
                 hook = ep.load()
             except ImportError as e:
-                log.error('Failed to load entry point {e!r}'.format(e=ep))
+                LOG.error('Failed to load entry point %r', ep)
                 continue
 
-            log.debug('Run hook {h!r}'.format(h=hook))
+            LOG.debug('Run hook {h!r}'.format(h=hook))
 
             try:
                 hook(self, *args)
             except Exception as e:
-                log.error('Failed to run hook {h!r}'.format(h=hook))
-                log.debug(e, exc_info=True)
-
-
-# Filter ---------------------------------------------------------------------
-
-
-class Filter(object):
-    '''Filter baseclass; can be used directly as an accept-all filter.'''
-
-    def __call__(self, candidate):
-        return True
-
-    def is_not(self):
-        '''Invert this filter.'''
-        return _Not(self)
-
-    def or_is(self, other):
-        '''Chain with another filter using OR'''
-        return _Chain('OR', self, other)
-
-    def or_not(self, other):
-        '''Chain with an inverted other filter using OR.'''
-        return self.or_is(other.is_not())
-
-    def and_is(self, other):
-        '''Chain with another filter using AND.'''
-        return _Chain('AND', self, other)
-
-    def and_not(self, other):
-        '''Chain with an inverted other filter using AND.'''
-        return self.and_is(other.is_not())
-
-    def __repr__(self):
-        return '<Filter *>'
-
-
-class _Not(Filter):
-    '''Invert filter'''
-
-    def __init__(self, filter):
-        self.filter = filter
-
-    def __call__(self, candidate):
-        return not(self.filter(candidate))
-
-    def __repr__(self):
-        return '<Not {s.filter!r}>'.format(s=self)
-
-
-class _Chain(Filter):
-    '''Combine multiple filters into one
-    using either ``OR`` or ``AND``.'''
-
-    def __init__(self, mode, *filters):
-        self.mode = mode
-        self.filters = filters[:]
-
-    def __call__(self, candidate):
-        result = self.filters[0](candidate)
-        for filter in self.filters[1:]:
-            matches = filter(candidate)
-            if self.mode == 'AND':
-                result = result and matches
-                if not result:
-                    return False
-            else:  # self.mode == 'OR'
-                result = result or matches
-                if result:
-                    return True
-
-        return result
-
-    def __repr__(self):
-        return '<Chain {s.mode!r} {s.filters!r}>'.format(s=self)
-
-
-class NameFilter(Filter):
-
-    def __init__(self, name):
-        self.name = name
-
-    def __call__(self, candidate):
-        return candidate == self.name
-
-
-class WildcardFilter(Filter):
-    '''Filter with shell wildcards using ``fnmatch``.'''
-
-    def __init__(self, *patterns):
-        self.patterns = patterns[:] if patterns else ['*']
-
-    def __call__(self, candidate):
-        for pattern in self.patterns:
-            if fnmatch.fnmatch(candidate, pattern):
-                return True
-        return False
-
-    def __repr__(self):
-        return '<Wildcard {s.patterns!r}>'.format(s=self)
-
-
-class PubdateAfter(Filter):
-
-    def __init__(self, since):
-        self.since = since
-
-    def __call__(self, candidate):
-        if candidate.pubdate:
-            return date(*candidate.pubdate[:3]) >= self.since
-        else:
-            return False
-
-    def __repr__(self):
-        return '<PubdateAfter {s.since!r}>'.format(s=self)
-
-
-class PubdateBefore(Filter):
-
-    def __init__(self, until):
-        self.until = until
-
-    def __call__(self, candidate):
-        if candidate.pubdate:
-            return date(*candidate.pubdate[:3]) <= self.until
-        else:
-            return False
-
-    def __repr__(self):
-        return '<PubdateBefore {s.until!r}>'.format(s=self)
+                LOG.error('Failed to run hook %r', hook)
+                LOG.debug(e, exc_info=True)
 
 
 # Helpers --------------------------------------------------------------------
@@ -561,12 +436,3 @@ def name_from_url(url):
     if name.startswith('www.'):
         name = name[4:]
     return name
-
-
-def require_directory(dirname):
-    '''Create the given directory if it does not exist.'''
-    try:
-        os.makedirs(dirname)
-    except os.error as e:
-        if e.errno != os.errno.EEXIST:
-            raise

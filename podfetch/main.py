@@ -26,11 +26,11 @@ except ImportError:
 
 import podfetch
 from podfetch import application
-from podfetch.application import Filter
-from podfetch.application import WildcardFilter
-from podfetch.application import NameFilter
-from podfetch.application import PubdateAfter
-from podfetch.application import PubdateBefore
+from podfetch.predicate import Filter
+from podfetch.predicate import WildcardFilter
+from podfetch.predicate import NameFilter
+from podfetch.predicate import PubdateAfter
+from podfetch.predicate import PubdateBefore
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import UserError
 from podfetch.model import Subscription
@@ -813,11 +813,13 @@ def _editor(app, args):
     unused, tmp = tempfile.mkstemp()
 
     try:
+        # TODO: use FileSystemStorage and save to temp
         sub.save(path=tmp)
         _write_props(tmp, _read_props(tmp))
         changes_made = _open_in_editor(tmp)
         if changes_made:
             log.info('Apply changes')
+            # TODO: use FileSystemStorage and load from temp
             changed = Subscription.from_file(
                 tmp,
                 sub.index_dir,

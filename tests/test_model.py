@@ -37,14 +37,45 @@ SUPPORTED_CONTENT = {
 }
 
 
+@pytest.fixture(scope='session')
+def storage():
+    import shutil
+    import tempfile
+    from podfetch.fsstorage import FileSystemStorage
+
+    basedir = tempfile.mkdtemp()
+
+    def subdir(name):
+        path = os.path.join(basedir, name)
+        os.mkdir(path)
+        return path
+
+
+    config_dir = subdir('config')
+    index_dir = subdir('index')
+    content_dir = subdir('content')
+    cache_dir = subdir('cache')
+    ignore = []
+
+    yield FileSystemStorage(
+        str(config_dir),
+        str(index_dir),
+        str(content_dir),
+        str(cache_dir),
+        ignore
+    )
+
+    # teardown
+    shutil.rmtree(basedir)
+
+
 @pytest.fixture
 def sub(tmpdir):
-    config_dir = tmpdir.mkdir('config')
-    index_dir = tmpdir.mkdir('index')
     content_dir = tmpdir.mkdir('content')
-    cache_dir = tmpdir.mkdir('cache')
-    sub = Subscription('name', 'http://example.com',
-        str(config_dir), str(index_dir), str(content_dir), str(cache_dir),
+    sub = Subscription(
+        'name',
+        'http://example.com',
+        str(content_dir),
         supported_content=SUPPORTED_CONTENT
     )
     return sub
@@ -141,188 +172,7 @@ class DummyEnclosure(_Dummy):
 # Subscription Tests ----------------------------------------------------------
 
 
-def test_load_subscription_from_file(tmpdir):
-    '''Load a subscription from its config file.'''
-    load_from = tmpdir.join('the_name')
-    load_from.write('\n'.join([
-        '[subscription]',
-        'url=http://example.com/feed',
-        'max_episodes = 30',
-        'filename_template = template',
-        'title = the_title',
-        'content_dir = subscription_content_dir',
-        'enabled = False',
-    ]))
-
-    sub = Subscription.from_file(
-        str(load_from), 'index_dir', 'content_dir', 'cache_dir'
-    )
-
-    assert sub.name == 'the_name'
-    assert sub.feed_url == 'http://example.com/feed'
-    assert sub.title == 'the_title'
-    assert sub.max_episodes == 30
-    assert sub.filename_template == 'template'
-    assert sub.content_dir == 'subscription_content_dir'
-    assert sub.enabled == False
-
-
-def test_load_nonexisting_raises_error():
-    '''Trying to load a Subscription from a non-existing config file
-    must raise a NoSubscriptionError.'''
-    with pytest.raises(NoSubscriptionError):
-        sub = Subscription.from_file(
-            'does-not-exist',
-            'index_dir', 'content_dir', 'cache_dir'
-        )
-
-
-def test_load_invalid_raises_error(tmpdir):
-    '''Loading a subscription from a file that is not in ini-format.'''
-    invalid_file = tmpdir.join('invalid_file')
-    invalid_file.write('something')
-    with pytest.raises(NoSubscriptionError):
-        Subscription.from_file(
-            str(invalid_file),
-            'index_dir', 'content_dir', 'cache_dir'
-        )
-
-
-def test_load_empty_raises_error(tmpdir):
-    '''Loading a subscription from an empty file.'''
-    empty_file = tmpdir.join('invalid_file')
-    empty_file.write('')
-    with pytest.raises(NoSubscriptionError):
-        Subscription.from_file(
-            str(empty_file),
-            'index_dir', 'content_dir', 'cache_dir'
-        )
-
-
-def test_load_missing_url(tmpdir):
-    '''Loading a subscription from ini file with required fields missing.'''
-    invalid_file = tmpdir.join('invalid_file')
-    invalid_file.write('[subscription]\nfield = value')
-    with pytest.raises(NoSubscriptionError):
-        Subscription.from_file(
-            str(invalid_file),
-            'index_dir', 'content_dir', 'cache_dir'
-        )
-
-
-def test_save(tmpdir, sub):
-    sub.max_episodes = 123
-    sub.filename_template = 'template'
-    sub.title = 'subscription-title'
-    sub.content_dir = 'my-content-dir'
-    sub.save()
-    filename = os.path.join(sub.config_dir, 'name')
-    with open(filename) as f:
-        lines = f.readlines()
-
-    text = ''.join(lines)
-    assert 'http://example.com' in text
-    assert '123' in text
-    assert 'template' in text
-    assert 'subscription-title' in text
-    assert 'my-content-dir' in text
-    assert 'yes' in text  # from enabled=True
-
-
-def test_url_escape(tmpdir):
-    '''url encodes character (e.g. "%20") conflict with ConfigParser's interpolation
-    syntax.'''
-    config_dir = str(tmpdir.mkdir('config'))
-    index_dir = str(tmpdir.mkdir('index'))
-    content_dir = str(tmpdir.mkdir('content_dir'))
-    cache_dir = str(tmpdir.mkdir('cache_dir'))
-
-    url = 'http://example.com/foo%20bar'
-    sub = Subscription('name', url,
-        config_dir, index_dir, content_dir, cache_dir,
-        supported_content=SUPPORTED_CONTENT
-    )
-    assert sub.feed_url == url  # url unchanged, as set
-
-    sub.save()  # should not fail
-
-    filename = os.path.join(sub.config_dir, sub.name)
-    reloaded = Subscription.from_file(filename, index_dir, content_dir, cache_dir)
-    assert reloaded.feed_url == url
-
-
-
-def test_save_and_load_index(sub):
-    '''Save the index of downloaded enclosures to disk and load it.'''
-    for index in range(5):
-        sub.episodes.append(
-            Episode(sub, 'id.{}'.format(index), SUPPORTED_CONTENT)
-        )
-
-    sub._save_index()
-
-    assert os.path.isfile(sub.index_file)
-
-    reloaded_sub = Subscription('name', 'url',
-        'index_dir', 'config_dir', 'content_dir', sub.cache_dir)
-    reloaded_sub._load_index()
-    for index in range(5):
-        id_ = 'id.{}'.format(index)
-        episode = sub._episode_for_id(id_)
-        assert episode is not None
-
-    assert sub._episode_for_id('bogus') is None
-
-
-def test_save_index_create_directory(sub, tmpdir):
-    '''Assert that the directory for the index file is created
-    if it does not exist.'''
-    sub.index_dir = str(tmpdir.join('does-not-exist'))
-    sub.name = 'name'
-    sub.episodes.append(Episode(sub, 'id', SUPPORTED_CONTENT))
-    sub._save_index()
-    assert os.path.isfile(os.path.join(sub.index_dir, 'name.json'))
-
-
-def test_delete(sub, monkeypatch):
-    '''Assert that after a subscription is deleted,
-    content, index file and cached header files are deleted.'''
-    with_dummy_feed(monkeypatch, return_etag='x', return_modified='x')
-    with_mock_download(monkeypatch)
-
-    sub.update()
-    assert len(os.listdir(sub.content_dir)) > 0
-    assert os.path.isfile(sub._cache_path('etag'))
-    assert os.path.isfile(sub._cache_path('modified'))
-    assert os.path.isfile(sub.index_file)
-
-    sub.delete()
-    assert not os.path.exists(sub.content_dir)
-    assert not os.path.exists(sub._cache_path('etag'))
-    assert not os.path.exists(sub._cache_path('modified'))
-    assert not os.path.exists(sub.index_file)
-
-
-def test_write_read_cache(sub):
-    '''Write to cache and retrieve correctly.'''
-    data = {
-        'foo': 'xyz',
-        'bar': 'abc',
-        'None': None,
-    }
-    for k, v in data.items():
-        sub._cache_put(k, v)
-
-    for k in data.keys():
-        assert sub._cache_get(k) == data[k]
-
-
-def test_write_read_cache_empty(sub):
-    '''Reading non-existent key from cache should be None.'''
-    assert sub._cache_get('does-not-exist') is None
-
-
-def test_apply_updates_max_episodes(sub, monkeypatch):
+def test_apply_updates_max_episodes(storage, sub, monkeypatch):
     '''in apply updates, max entries to be processed
     is max_episodes for this subscription.
     '''
@@ -331,11 +181,11 @@ def test_apply_updates_max_episodes(sub, monkeypatch):
 
     sub.max_episodes = 1
     sub._process_feed_entry = mock.MagicMock()
-    sub.update()
+    sub.update(storage)
     assert sub._process_feed_entry.call_count == 1
 
 
-def test_apply_updates_error_handling(sub, monkeypatch):
+def test_apply_updates_error_handling(storage, sub, monkeypatch):
     '''Error for one feed entry should not stop us.'''
     # we rely on the dummy feed having more than one item
     with_dummy_feed(monkeypatch)
@@ -343,41 +193,41 @@ def test_apply_updates_error_handling(sub, monkeypatch):
 
     mock_download = mock.MagicMock(side_effect=ValueError)
     monkeypatch.setattr(Episode, 'download', mock_download)
-    sub.update()
+    sub.update(storage)
     assert Episode.download.call_count > 1
 
 
-def test_update_feed_unchanged(sub, monkeypatch):
+def test_update_feed_unchanged(storage, sub, monkeypatch):
     '''When the feed is not modified, update() should return OK
     but ot update.'''
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
-    sub._cache_put('etag', 'etag-value')
-    sub._cache_put('modified', 'modified-value')
+    storage.cache_put(sub.name, 'etag', 'etag-value')
+    storage.cache_put(sub.name, 'modified', 'modified-value')
     sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    sub.update(storage)
 
     assert not sub._update_entries.called
-    assert sub._cache_get('etag') == 'etag-value'
-    assert sub._cache_get('modified') == 'modified-value'
+    assert storage.cache_get(sub.name, 'etag') == 'etag-value'
+    assert storage.cache_get(sub.name, 'modified') == 'modified-value'
 
 
-def test_forced_update_feed_unchanged(sub, monkeypatch):
+def test_forced_update_feed_unchanged(storage, sub, monkeypatch):
     '''Ignore unchanged feed when using ``force``.'''
     with_dummy_feed(monkeypatch, status=304)
     with_mock_download(monkeypatch)
 
-    sub._cache_put('etag', 'etag-value')
-    sub._cache_put('modified', 'modified-value')
+    storage.cache_put(sub.name, 'etag', 'etag-value')
+    storage.cache_put(sub.name, 'modified', 'modified-value')
 
-    sub.update(force=True)
+    sub.update(storage, force=True)
 
     assert len(sub.episodes) > 0
 
 
-def test_update_store_feed_headers(sub, monkeypatch):
+def test_update_store_feed_headers(storage, sub, monkeypatch):
     '''After a successful update, we must remember
     the ``etag`` and ``modified`` header.
     '''
@@ -385,51 +235,51 @@ def test_update_store_feed_headers(sub, monkeypatch):
         return_modified='new-modified')
     with_mock_download(monkeypatch)
 
-    sub._cache_put('etag', 'initial-etag')
-    sub._cache_put('modified', 'intial-modified')
+    storage.cache_put(sub.name, 'etag', 'initial-etag')
+    storage.cache_put(sub.name, 'modified', 'intial-modified')
     sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    sub.update(storage)
 
     assert sub._update_entries.called
-    assert sub._cache_get('etag') == 'new-etag'
-    assert sub._cache_get('modified') == 'new-modified'
+    assert storage.cache_get(sub.name, 'etag') == 'new-etag'
+    assert storage.cache_get(sub.name, 'modified') == 'new-modified'
 
 
-def test_failed_update_no_store_feed_headers(sub, monkeypatch):
+def test_failed_update_no_store_feed_headers(storage, sub, monkeypatch):
     '''After an error in feed-processing update, we must NOT remember
     the ``etag`` and ``modified`` header.
     '''
     with_dummy_feed(monkeypatch, return_etag='new-etag',
         return_modified='new-modified')
     with_mock_download(monkeypatch)
-    sub._cache_put('etag', 'initial-etag')
-    sub._cache_put('modified', 'initial-modified')
+    storage.cache_put(sub.name, 'etag', 'initial-etag')
+    storage.cache_put(sub.name, 'modified', 'initial-modified')
     sub._update_entries = mock.MagicMock(side_effect=ValueError)
 
     with pytest.raises(ValueError):
-        sub.update()
+        sub.update(storage)
 
-    assert sub._cache_get('etag') == 'initial-etag'
-    assert sub._cache_get('modified') == 'initial-modified'
+    assert storage.cache_get(sub.name, 'etag') == 'initial-etag'
+    assert storage.cache_get(sub.name, 'modified') == 'initial-modified'
 
 
-def test_update_feed_moved_permanently(sub, monkeypatch):
+def test_update_feed_moved_permanently(storage, sub, monkeypatch):
     new_url='http://example.com/new'
     with_dummy_feed(monkeypatch, status=301, href=new_url)
     with_mock_download(monkeypatch)
 
     sub._update_entries = mock.MagicMock()
 
-    sub.update()
+    sub.update(storage)
 
     assert sub._update_entries.called
     assert sub.feed_url == new_url
 
 
-def test_update_error_fetching_feed(sub, monkeypatch):
-    sub._cache_put('etag', 'initial-etag')
-    sub._cache_put('modified', 'initial-modified')
+def test_update_error_fetching_feed(storage, sub, monkeypatch):
+    storage.cache_put(sub.name, 'etag', 'initial-etag')
+    storage.cache_put(sub.name, 'modified', 'initial-modified')
 
     def mock_fetch_feed(url, etag=None, modified=None):
         raise FeedNotFoundError
@@ -437,23 +287,17 @@ def test_update_error_fetching_feed(sub, monkeypatch):
     monkeypatch.setattr(model, '_fetch_feed', mock_fetch_feed)
 
     with pytest.raises(FeedNotFoundError):
-        sub.update()
+        sub.update(storage)
 
-    etag = sub._cache_get('etag')
-    modified = sub._cache_get('modified')
+    etag = storage.cache_get(sub.name, 'etag')
+    modified = storage.cache_get(sub.name, 'modified')
     assert etag == 'initial-etag'
     assert modified == 'initial-modified'
 
 
-def test_downloaded_file_perms(tmpdir, monkeypatch):
+def DISABLED_test_downloaded_file_perms():
     '''Assert that a downloaded file has the correct permissions.'''
-    def mock_urlretrieve(url):
-        dst = str(tmpdir.join('somefile'))
-        with open(dst, 'w') as f:
-            f.write('something')
-        return dst, None
-
-    monkeypatch.setattr(model, 'urlretrieve', mock_urlretrieve)
+    #TODO: mock requests.get(url, stream=True) ?
 
     dst = str(tmpdir.join('dst'))
     model.download('some-url', dst)
@@ -466,7 +310,7 @@ def test_downloaded_file_perms(tmpdir, monkeypatch):
     assert mode & stat.S_IROTH  # other read
 
 
-def test_download_error(sub, monkeypatch):
+def test_download_error(storage, sub, monkeypatch):
     '''if download failed, episode should be present but w/o local file'''
     with_dummy_feed(monkeypatch)
 
@@ -477,7 +321,7 @@ def test_download_error(sub, monkeypatch):
     assert len(sub.episodes) == 0
 
     monkeypatch.setattr(model, 'download', failing_download)
-    sub.update()
+    sub.update(storage)
 
     assert len(sub.episodes) > 1
     assert not sub.episodes[0].files[0][2]  # no local file
@@ -511,11 +355,11 @@ def outdated_test_generate_enclosure_filename_template(sub):
     assert gen(None).startswith('entry')
 
 
-def test_purge(sub, monkeypatch):
+def test_purge(storage, sub, monkeypatch):
     '''Assert that the right episodes are deleted with purge'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
-    sub.update()
+    sub.update(storage)
     sub.max_episodes = 1
 
     # relies on common.FEED_DATA having exactly two items
@@ -528,12 +372,12 @@ def test_purge(sub, monkeypatch):
     assert len(os.listdir(sub.content_dir)) == 1
 
 
-def test_purge_simulate(sub, monkeypatch):
+def test_purge_simulate(storage, sub, monkeypatch):
     '''Assert that no episodes are deleted with purge
     in simulation mode'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
-    sub.update()
+    sub.update(storage)
     sub.max_episodes = 1
 
     # relies on common.FEED_DATA having exactly two items
@@ -546,12 +390,14 @@ def test_purge_simulate(sub, monkeypatch):
     assert len(os.listdir(sub.content_dir)) == 2
 
 
-def test_purge_keepall(sub, monkeypatch):
+def test_purge_keepall(storage, sub, monkeypatch):
     '''Assert that no episodes are deleted with purge
     if max_episodes < 1'''
     with_dummy_feed(monkeypatch)
     with_mock_download(monkeypatch)
-    sub.update()
+
+    sub.update(storage)
+
     sub.max_episodes = -1
 
     # relies on common.FEED_DATA having exactly two items
@@ -849,7 +695,7 @@ def test_file_extension_for_mime(sub):
         ('AUDIO/FLAC', 'flac'),
     ]
     for mime, expected in supported_cases:
-        assert episode._file_extension_for_content_type(mime) == expected
+        assert episode._file_extension_for_mime(mime) == expected
 
     unsupported = [
         'image/jpeg',
@@ -859,7 +705,7 @@ def test_file_extension_for_mime(sub):
     ]
     for mime in unsupported:
         with pytest.raises(ValueError):
-            episode._file_extension_for_content_type(mime)
+            episode._file_extension_for_mime(mime)
 
 
 def test_unique_filename(tmpdir):
@@ -881,7 +727,7 @@ def test_unique_filename(tmpdir):
     assert unique1.endswith('.ext')
 
 
-def test_feeditem_no_ids(sub, monkeypatch):
+def test_feeditem_no_ids(storage, sub, monkeypatch):
     '''Handling a RSS-feed where the //item/guid is missing.
     Nornally, entry.id is used to generate the filename and
     as the key to identify an episode.
@@ -892,12 +738,12 @@ def test_feeditem_no_ids(sub, monkeypatch):
     with_mock_download(monkeypatch)
 
     assert len(sub.episodes) == 0
-    sub.update()
+    sub.update(storage)
     new_items = len(sub.episodes)
     assert new_items > 0
 
     model.download.reset_mock()
-    sub.update()
+    sub.update(storage)
     assert not model.download.called
     assert len(sub.episodes) == new_items
 
