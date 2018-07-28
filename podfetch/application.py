@@ -147,6 +147,7 @@ class Podfetch:
         '''
         for s in self._storage.iter_subscriptions(predicate=predicate):
             s.supported_content = self.supported_content
+            s.app_filename_template = self.filename_template
             yield s
 
     def iter_episodes(self, sub_filter=None):
