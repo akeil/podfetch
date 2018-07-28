@@ -181,7 +181,7 @@ class Subscription:
         entries_ok = True
         try:
             entries_ok = self._update_entries(feed, storage, force=force)
-        finally:
+        except Exception:
             entries_ok = False
 
         # store etag, modified after *successful* update
@@ -204,6 +204,7 @@ class Subscription:
             if episode:
                 pass
             else:
+                LOG.debug('Got new episode: %r.', episode)
                 episode = Episode.from_entry(
                     self, self.supported_content, entry)
                 if episode.has_attachments:
@@ -215,8 +216,7 @@ class Subscription:
                     continue
 
             try:
-                episode.download(force=force)
-                should_save = True
+                should_save = episode.download(force=force)
             except Exception as err:
                 has_errors = True
                 LOG.error('Failed to update episode %s. Error was %r',
@@ -459,6 +459,7 @@ class Episode(object):
             a local file already exists (overwriting the local file).
             Defaults to *False*.
         '''
+        did_download = False
         for index, item in enumerate(self._iter_attachments()):
             url, content_type, local_file = item
             have = self._is_downloaded(url)
@@ -466,8 +467,11 @@ class Episode(object):
                 local_file = self._download_one(index, url, content_type,
                                                 dst_file=local_file)
                 self.files[index] = (url, content_type, local_file)
+                did_download = True
             else:
                 LOG.debug('Skip %r.', url)
+
+        return did_download
 
     def _is_downloaded(self, url):
         '''Tell if the enclosure for the given URL has been downloaded.

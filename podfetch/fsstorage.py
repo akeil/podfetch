@@ -211,6 +211,7 @@ class FileSystemStorage(Storage):
         self._save_index_file(name, data)
 
     def _save_index_file(self, name, data):
+        LOG.debug('Save index file %r', name)
         path = self._index_path(name)
         if data:
             require_directory(os.path.dirname(path))
@@ -221,6 +222,7 @@ class FileSystemStorage(Storage):
 
     def save_episode(self, episode):
         '''Save a single episode.'''
+        LOG.debug('Save episode %r', episode)
         name = episode.subscription.name
         episode_id = episode.id
         episode_list = self._load_episode_index(name)
@@ -277,6 +279,8 @@ class FileSystemStorage(Storage):
         return result or None  # convert '' to None
 
     def cache_put(self, namespace, key, value):
+        '''Put a value into the cache.'''
+        LOG.debug('Cache put %r: %r', key, value)
         path = self._cache_path(namespace, key)
         forget = not bool(value)
         if not forget:
@@ -290,7 +294,7 @@ class FileSystemStorage(Storage):
 
         # value was empty or writing failed
         if forget:
-            self._cache_forget(namespace, key)
+            self.cache_forget(namespace, key)
 
     def cache_forget(self, namespace, keys=None):
         '''Remove entries for the given cache keys.'''
