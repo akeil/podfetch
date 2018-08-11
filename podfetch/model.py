@@ -20,6 +20,7 @@ Instances of the ``Subscription`` class are normally created by the
         passing values from the config file.
 
 '''
+import errno
 import itertools
 import json
 import logging
@@ -137,10 +138,10 @@ class Subscription:
             episode.delete_local_files()
         try:
             os.rmdir(self.content_dir)
-        except os.error as err:
-            if err.errno == os.errno.ENOENT:
+        except OSError as err:
+            if err.errno == errno.ENOENT:
                 pass
-            elif err.errno == os.errno.ENOTEMPTY:
+            elif err.errno == errno.ENOTEMPTY:
                 LOG.warning(('Directory %r was not removed because it'
                              ' is not empty.'), self.content_dir)
             else:
@@ -321,7 +322,7 @@ class Subscription:
         except OSError as err:
             LOG.warning('Could not delete directory %r. Error was %s.',
                 old_content_dir, err)
-            if err.errno not in (os.errno.ENOENT, os.errno.ENOTEMPTY):
+            if err.errno not in (errno.ENOENT, errno.ENOTEMPTY):
                 raise
 
     def rename_files(self, storage):
@@ -589,9 +590,7 @@ class Episode(object):
                 try:
                     shutil.move(oldpath, newpath)
                     self.files[index] = (url, content_type, newpath)
-                except OSError as err:
-                    if err.errno != os.errno.ENOENT:
-                        raise
+                except FileNotFoundError:
                     LOG.warning(('Failed to rename file %r.'
                         ' File does not exist.'), oldpath)
 

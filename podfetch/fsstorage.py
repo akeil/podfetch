@@ -154,9 +154,8 @@ class FileSystemStorage(Storage):
         LOG.info('Delete subscription at %r.', path)
         try:
             os.unlink(path)
-        except os.error as e:
-            if e.errno != os.errno.ENOENT:
-                raise
+        except FileNotFoundError:
+            pass
 
         delete_if_exists(self._index_path(name))
 
@@ -197,11 +196,8 @@ class FileSystemStorage(Storage):
         try:
             with open(self._index_path(name)) as src:
                 data = json.load(src)
-        except IOError as err:
-            if err.errno == os.errno.ENOENT:
-                pass
-            else:
-                raise
+        except FileNotFoundError:
+            pass
 
         return data
 
@@ -272,9 +268,8 @@ class FileSystemStorage(Storage):
         try:
             with open(self._cache_path(namespace, key)) as cachefile:
                 result = cachefile.read()
-        except IOError as err:
-            if err.errno != os.errno.ENOENT:
-                raise
+        except FileNotFoundError:
+            pass
 
         return result or None  # convert '' to None
 
