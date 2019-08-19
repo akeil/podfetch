@@ -213,6 +213,7 @@ def setup_argparser():
     _show(subs, common)
     _del(subs, common)
     _purge(subs, common)
+    _daemon(subs, common)
 
     return parser
 
@@ -688,6 +689,20 @@ def _edit(subs, common):
             )
 
     edit.set_defaults(func=do_edit)
+
+
+def _daemon(subs, common):
+    daemon = subs.add_parser(
+        'daemon',
+        parents=[common,],
+        help='Start podfetch as a daemon'
+    )
+
+    def do_daemon(app, options):
+        from podfetch.daemon.service import run
+        return run(app, options)
+
+    daemon.set_defaults(func=do_daemon)
 
 
 all_keys = [
