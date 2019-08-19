@@ -38,9 +38,9 @@ App
 ---
 
 URLs::
-    /api/app/update
-    /api/app/update/{NAME}
-    /api/app/purge
+    /app/update
+    /app/update/{NAME}
+    /app/purge
 
 :POST: trigger the app-function
 
@@ -51,7 +51,7 @@ Parameters:
 Subscription
 ------------
 
-URL: ``/api/subscriptions/{NAME}``
+URL: ``/subscription/{NAME}``
 
 :GET: subscription details
 :POST: create (option: update y/n)
@@ -70,7 +70,7 @@ Parameters:
 Subscriptions (List)
 --------------------
 
-URL: ``/api/subscriptions``
+URL: ``/subscriptions``
 
 :GET: list subscriptions
 
