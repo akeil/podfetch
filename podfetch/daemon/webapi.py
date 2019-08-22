@@ -47,7 +47,7 @@ class Web:
                 'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
             }
         }
-        # cherrypy.config['tools.json_out.handler'] = <func>
+        cherrypy.config['tools.json_out.handler'] = _json_encoder
         cherrypy.quickstart(_Root(self._podfetch), '/', conf)
 
     def shutdown(self):
@@ -75,7 +75,7 @@ class _Subscriptions:
     def __init__(self, podfetch):
         self._podfetch = podfetch
 
-    @cherrypy.tools.json_out(handler=_json_encoder)
+    @cherrypy.tools.json_out()
     def GET(self):
         result = [s for s in self._podfetch.iter_subscriptions()]
         return result
@@ -95,7 +95,7 @@ class _Subscription:
             return self._podfetch.subscription_for_name(name)
 
     @cherrypy.tools.json_in()
-    @cherrypy.tools.json_out(handler=_json_encoder)
+    @cherrypy.tools.json_out()
     def POST(self, name):
         name = name.strip()
         params = cherrypy.request.json
@@ -126,7 +126,7 @@ class _Subscription:
             return sub
 
     @cherrypy.tools.json_in()
-    @cherrypy.tools.json_out(handler=_json_encoder)
+    @cherrypy.tools.json_out()
     def PUT(self, name):
         name = name.strip()
         params = cherrypy.request.json
@@ -152,7 +152,7 @@ class _Subscription:
         return self._podfetch.subscription_for_name(name)
 
     @cherrypy.tools.json_in()
-    @cherrypy.tools.json_out(handler=_json_encoder)
+    @cherrypy.tools.json_out()
     def PATCH(self, name):
         name = name.strip()
         params = cherrypy.request.json
