@@ -89,13 +89,17 @@ class _Subscription:
 
     @cherrypy.tools.json_out(handler=_json_encoder)
     def GET(self, name):
-        sub = self._podfetch.subscription_for_name(name)
-        return sub
+        name = name.strip()
+
+        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+            return self._podfetch.subscription_for_name(name)
 
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out(handler=_json_encoder)
     def POST(self, name):
         name = name.strip()
+        params = cherrypy.request.json
+
         if not name:
             raise cherrypy.HTTPError(400, 'Name must not be empty')
 
@@ -110,8 +114,6 @@ class _Subscription:
         except NoSubscriptionError:
             pass
 
-        params = cherrypy.request.json
-
         with cherrypy.HTTPError.handle(Exception, 400):
             sub = self._podfetch.add_subscription(
                 url,
@@ -123,25 +125,41 @@ class _Subscription:
             # apparanetly, json_out sets the status code (back) to 200 Ok
             return sub
 
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out(handler=_json_encoder)
     def PUT(self, name):
-        params = {}  # TODO: read json
-        move_files = False  # TODO: from param
+        name = name.strip()
+        params = cherrypy.request.json
 
-        # explicitly read every param from the params-dict
-        # so that we will get an error if a param is missing.
-        self._podfetch.edit(name,
-            url=params['url'],
-            title=params['title'],
-            enabled=params['enabled'],
-            max_episodes=params['max_episodes'],
-            filename_template=params['filename_template'],
-            content_dir=params['content_dir'],
-            move_files=move_files
-        )
-        # return 204
+        if not name:
+            raise cherrypy.HTTPError(400, 'Name must not be empty')
 
+        move_files = False  # TODO: from request param(?)
+
+        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+            # explicitly read every param from the params-dict
+            # so that we will get an error if a param is missing.
+            self._podfetch.edit(name,
+                url=params['feed_url'],
+                title=params['title'],
+                enabled=params['enabled'],
+                max_episodes=params['max_episodes'],
+                filename_template=params['filename_template'],
+                content_dir=params['content_dir'],
+                move_files=move_files
+            )
+
+        return self._podfetch.subscription_for_name(name)
+
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out(handler=_json_encoder)
     def PATCH(self, name):
-        params = {}  # TODO: read json
+        name = name.strip()
+        params = cherrypy.request.json
+
+        if not name:
+            raise cherrypy.HTTPError(400, 'Name must not be empty')
+
         # TODO: maybe clean params and complain if invalid
         allowed = ('name', 'url', 'title', 'enabled', 'max_episodes',
             'filename_template', 'content_dir')
@@ -153,13 +171,16 @@ class _Subscription:
 
         move_files = False  # TODO: from param
         params['move_files'] = move_files
-        self._podfetch.edit(name, **params)
-        #TODO return 204
+        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+            self._podfetch.edit(name, **params)
+
+        return self._podfetch.subscription_for_name(name)
 
     def DELETE(self, name):
         delete_content = False  # TODO: param
-        #self._podfetch.remove_subscription(name, delete_content=delete_content)
-        #TODO return 204
+        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+            self._podfetch.remove_subscription(name, delete_content=delete_content)
+        cherrypy.response.status = 204
 
 
 @cherrypy.expose
