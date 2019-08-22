@@ -1,5 +1,6 @@
 #-*- coding: utf-8 -*-
 '''HTTP API for podfetch.'''
+import json
 from json import JSONEncoder
 import logging
 
@@ -91,7 +92,7 @@ class _Subscription:
     def GET(self, name):
         name = name.strip()
 
-        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404):
             return self._podfetch.subscription_for_name(name)
 
     @cherrypy.tools.json_in()
@@ -101,20 +102,20 @@ class _Subscription:
         params = cherrypy.request.json
 
         if not name:
-            raise cherrypy.HTTPError(400, 'Name must not be empty')
+            raise _APIError(400, 'Name must not be empty')
 
-        with cherrypy.HTTPError.handle(KeyError, 400):
+        with _APIError.handle(KeyError, 400):
             url = params.pop('url')  # required
 
         # name must be unique
         try:
             existing = self._podfetch.subscription_for_name(name)
             if existing:
-                raise cherrypy.HTTPError(409, 'Subscription %r already exists' % name)
+                raise _APIError(409, 'Subscription %r already exists' % name)
         except NoSubscriptionError:
             pass
 
-        with cherrypy.HTTPError.handle(Exception, 400):
+        with _APIError.handle(Exception, 400):
             sub = self._podfetch.add_subscription(
                 url,
                 name=name,
@@ -132,11 +133,11 @@ class _Subscription:
         params = cherrypy.request.json
 
         if not name:
-            raise cherrypy.HTTPError(400, 'Name must not be empty')
+            raise _APIError(400, 'Name must not be empty')
 
         move_files = False  # TODO: from request param(?)
 
-        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404):
             # explicitly read every param from the params-dict
             # so that we will get an error if a param is missing.
             self._podfetch.edit(name,
@@ -158,11 +159,8 @@ class _Subscription:
         params = cherrypy.request.json
 
         if not name:
-            raise cherrypy.HTTPError(400, 'Name must not be empty')
+            raise _APIError(400, 'Name must not be empty')
 
-        # TODO: maybe clean params and complain if invalid
-        allowed = ('name', 'url', 'title', 'enabled', 'max_episodes',
-            'filename_template', 'content_dir')
         # do not allow name change through Rest API
         try:
             del params['name']
@@ -171,14 +169,14 @@ class _Subscription:
 
         move_files = False  # TODO: from param
         params['move_files'] = move_files
-        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404):
             self._podfetch.edit(name, **params)
 
         return self._podfetch.subscription_for_name(name)
 
     def DELETE(self, name):
         delete_content = False  # TODO: param
-        with cherrypy.HTTPError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404):
             self._podfetch.remove_subscription(name, delete_content=delete_content)
         cherrypy.response.status = 204
 
@@ -203,6 +201,21 @@ class _Episode:
 
     def DELETE(self, id):
         pass
+
+
+class _APIError(cherrypy.HTTPError):
+    # see
+    # https://stackoverflow.com/questions/42816264/cherrypy-httperror-custom-response-handling-not-html
+    # https://github.com/cherrypy/cherrypy/blob/master/cherrypy/_cperror.py
+
+    def __init__(self, status, message=None):
+        super().__init__(status=status, message=message)
+
+    def set_response(self):
+        response = cherrypy.serving.response
+        response.status = self.status
+        response.headers.pop('Content-Length', None)
+        response.body = json.dumps({'message': self._message}).encode('utf-8')
 
 
 class _PodfetchEncoder(JSONEncoder):
