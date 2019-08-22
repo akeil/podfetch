@@ -41,7 +41,7 @@ class Daemon:
             service.startup()
 
 
-        # wait for sigterm
+        # wait for sigterm/stop()
 
     def stop(self):
         LOG.debug('Daemon stops')

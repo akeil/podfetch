@@ -1,7 +1,12 @@
 #-*- coding: utf-8 -*-
 '''HTTP API for podfetch.'''
+from json import JSONEncoder
+import logging
 
 import cherrypy
+
+from podfetch.model import Subscription
+
 
 # maps URL patterns to class names
 URLS = (
@@ -9,6 +14,18 @@ URLS = (
     #'/api/subscriptions/(.+)', '_Subscription',
     #'/api/episodes/(.+)', '_Episode',
 )
+
+LOG = logging.getLogger(__name__)
+
+
+# taken from cherrypy's default _json_inner_handler
+# https://github.com/cherrypy/cherrypy/blob/master/cherrypy/lib/jsontools.py
+def _json_encoder(*args, **kwargs):
+    value = cherrypy.serving.request._json_inner_handler(*args, **kwargs)
+    encoder = _PodfetchEncoder()
+    for chunk in encoder.iterencode(value):
+        yield chunk.encode('utf-8')
+
 
 class Web:
 
@@ -56,10 +73,10 @@ class _Subscriptions:
     def __init__(self, podfetch):
         self._podfetch = podfetch
 
-    #@cherrypy.tools.json_out()
+    @cherrypy.tools.json_out(handler=_json_encoder)
     def GET(self):
         result = [s for s in self._podfetch.iter_subscriptions()]
-        return str(result)  # TODO: JSON
+        return result
 
 
 @cherrypy.expose
@@ -146,3 +163,24 @@ class _Episode:
 
     def DELETE(self, id):
         pass
+
+
+class _PodfetchEncoder(JSONEncoder):
+
+    def default(self, obj):
+        LOG.debug('default: %r', obj)
+        if isinstance(obj, Subscription):
+            return self._encode_subscription(obj)
+        else:
+            return JSONEncoder.default(self, obj)
+
+    def _encode_subscription(self, sub):
+        return {
+            'name': sub.name,
+            'feed_url': sub.feed_url,
+            'title': sub.title,
+            'max_episodes': sub.max_episodes,
+            'content_dir': sub.content_dir,
+            'enabled': sub.enabled,
+            'filename_template': sub.filename_template,
+        }
