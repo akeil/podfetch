@@ -6,6 +6,7 @@ import logging
 import cherrypy
 
 from podfetch.model import Subscription
+from podfetch.exceptions import NoSubscriptionError
 
 
 # maps URL patterns to class names
@@ -46,6 +47,7 @@ class Web:
                 'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
             }
         }
+        # cherrypy.config['tools.json_out.handler'] = <func>
         cherrypy.quickstart(_Root(self._podfetch), '/', conf)
 
     def shutdown(self):
@@ -85,24 +87,41 @@ class _Subscription:
     def __init__(self, podfetch):
         self._podfetch = podfetch
 
-    #@cherrypy.tools.json_out()
+    @cherrypy.tools.json_out(handler=_json_encoder)
     def GET(self, name):
         sub = self._podfetch.subscription_for_name(name)
-        return str(sub)
+        return sub
 
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out(handler=_json_encoder)
     def POST(self, name):
+        name = name.strip()
         if not name:
-            raise ValueError('Name must not be empty')
+            raise cherrypy.HTTPError(400, 'Name must not be empty')
 
-        params = {}  # TODO: read json
-        update_now = True  # TODO: from param
-        url = params.pop('url')  # required
-        self._podfetch.add_subscription(
-            url,
-            name=name,
-            **params  # content_dir, max_episodes, filename_template
-        )
-        # return 201
+        with cherrypy.HTTPError.handle(KeyError, 400):
+            url = params.pop('url')  # required
+
+        # name must be unique
+        try:
+            existing = self._podfetch.subscription_for_name(name)
+            if existing:
+                raise cherrypy.HTTPError(409, 'Subscription %r already exists' % name)
+        except NoSubscriptionError:
+            pass
+
+        params = cherrypy.request.json
+
+        with cherrypy.HTTPError.handle(Exception, 400):
+            sub = self._podfetch.add_subscription(
+                url,
+                name=name,
+                **params  # content_dir, max_episodes, filename_template
+            )
+            cherrypy.response.status = "201 Created"
+            # TODO: this has no effect.
+            # apparanetly, json_out sets the status code (back) to 200 Ok
+            return sub
 
     def PUT(self, name):
         params = {}  # TODO: read json
