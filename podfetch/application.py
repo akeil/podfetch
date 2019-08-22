@@ -45,6 +45,7 @@ import feedparser
 
 from podfetch.fsstorage import FileSystemStorage
 from podfetch.model import Subscription
+from podfetch.predicate import Filter
 from podfetch import exceptions as ex
 
 

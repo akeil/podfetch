@@ -899,6 +899,9 @@ CFG_TYPES = {
         'ignore': _whitespace_list,
         'content_types': _whitespace_dict,
         'ls_limit': int,
+    },
+    'daemon': {
+        'update_interval': int,
     }
 }
 
