@@ -92,7 +92,7 @@ class _Subscription:
     def GET(self, name):
         name = name.strip()
 
-        with _APIError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404, 'Subscription not found'):
             return self._podfetch.subscription_for_name(name)
 
     @cherrypy.tools.json_in()
@@ -104,7 +104,7 @@ class _Subscription:
         if not name:
             raise _APIError(400, 'Name must not be empty')
 
-        with _APIError.handle(KeyError, 400):
+        with _APIError.handle(KeyError, 400, 'URL is required'):
             url = params.pop('url')  # required
 
         # name must be unique
@@ -115,7 +115,7 @@ class _Subscription:
         except NoSubscriptionError:
             pass
 
-        with _APIError.handle(Exception, 400):
+        with _APIError.handle(Exception, 400, 'Invalid parameters'):
             sub = self._podfetch.add_subscription(
                 url,
                 name=name,
@@ -137,7 +137,7 @@ class _Subscription:
 
         move_files = False  # TODO: from request param(?)
 
-        with _APIError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404, 'Subscription not found'):
             # explicitly read every param from the params-dict
             # so that we will get an error if a param is missing.
             self._podfetch.edit(name,
@@ -169,14 +169,14 @@ class _Subscription:
 
         move_files = False  # TODO: from param
         params['move_files'] = move_files
-        with _APIError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404, 'Subscription not found'):
             self._podfetch.edit(name, **params)
 
         return self._podfetch.subscription_for_name(name)
 
     def DELETE(self, name):
         delete_content = False  # TODO: param
-        with _APIError.handle(NoSubscriptionError, 404):
+        with _APIError.handle(NoSubscriptionError, 404, 'Subscription not found'):
             self._podfetch.remove_subscription(name, delete_content=delete_content)
         cherrypy.response.status = 204
 
