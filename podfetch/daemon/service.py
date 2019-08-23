@@ -5,6 +5,7 @@ import signal
 from threading import Timer
 from threading import Thread
 
+from podfetch.daemon.dbusapi import DBus
 from podfetch.daemon.webapi import Web
 
 
@@ -19,7 +20,7 @@ def run(app, options):
 
     signal.signal(signal.SIGINT, on_sigint)
     daemon.start()
-    signal.pause()  #wait ...
+    signal.pause()  # wait ...
 
 
 class Daemon:
@@ -28,6 +29,7 @@ class Daemon:
         self._services = [
             Web(app, options),
             _Scheduler(app, options),
+            DBus(app, options),
         ]
 
     def start(self):
