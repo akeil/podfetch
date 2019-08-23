@@ -25,18 +25,13 @@ def run(app, options):
 class Daemon:
 
     def __init__(self, app, options):
-        self._app = app
-        self._options = options
-        self._timer = None
-        self._interval = options.daemon.update_interval
         self._services = [
             Web(app, options),
+            _Scheduler(app, options),
         ]
 
     def start(self):
         LOG.debug('Daemon starts')
-        LOG.debug('Timer starts (interval %s minutes)', self._interval)
-        self._start_timer()
 
         n = 0
         for service in self._services:
@@ -50,24 +45,38 @@ class Daemon:
 
     def stop(self):
         LOG.debug('Daemon stops')
-        if self._timer:
-            LOG.debug('Stopping timer')
-            self._timer.cancel()
-
         for service in self._services:
             LOG.debug('Shutdown %r', service)
             service.stop()
 
+
+class _Scheduler:
+
+    def __init__(self, app, options):
+        self._timer = None
+        self._interval = options.daemon.update_interval * 60.0  # minutes to seconds
+
+    def run(self):
+        self._start_timer()
+
+    def stop(self):
+        self._cancel_timer()
+
     def _start_timer(self):
-        if self._timer:
-            self._timer.cancel()
+        self._cancel_timer()
 
         def tick():
-            LOG.debug('Timer ticked')
-            self._start_timer()  # schedule next
             self._app.update()
+            self._start_timer()  # schedule next
 
-        interval = self._interval * 60.0  # minutes to seconds
-        self._timer = Timer(interval, tick)
+        self._timer = Timer(self._interval, tick)
         self._timer.daemon = True
         self._timer.start()
+
+    def _cancel_timer(self):
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
+    def __repr__(self):
+        return '<Scheduler interval=%s>' % self._interval
