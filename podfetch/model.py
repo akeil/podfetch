@@ -400,6 +400,20 @@ class Episode(object):
                           for enc
                           in entry.get('enclosures', [])])
 
+    @property
+    def published(self):
+        ''''The ``pubdate`` as a datetime object.'''
+        if not self.pubdate:
+            return None
+        else:
+            return datetime(self.pubdate[0],  # year
+                self.pubdate[1],  # month
+                self.pubdate[2],  # day
+                self.pubdate[3],  # hour
+                self.pubdate[4],  # minute
+                self.pubdate[5],  # second
+                tzinfo=UTC)
+
     @classmethod
     def from_dict(cls, parent_subscription, supported_content, data_dict):
         '''Create an Episode instance from the given data.

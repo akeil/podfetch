@@ -1,21 +1,17 @@
 #-*- coding: utf-8 -*-
 '''HTTP API for podfetch.'''
+import itertools
 import json
 from json import JSONEncoder
 import logging
 
 import cherrypy
 
-from podfetch.model import Subscription
 from podfetch.exceptions import NoSubscriptionError
+from podfetch.model import Episode
+from podfetch.model import Subscription
+from podfetch.predicate import Filter
 
-
-# maps URL patterns to class names
-URLS = (
-    '/api/app/update', '_Update',
-    #'/api/subscriptions/(.+)', '_Subscription',
-    #'/api/episodes/(.+)', '_Episode',
-)
 
 LOG = logging.getLogger(__name__)
 
@@ -61,6 +57,7 @@ class _Root:
     def __init__(self, podfetch):
         self.subscriptions = _Subscriptions(podfetch)
         self.subscription = _Subscription(podfetch)
+        self.episodes = _Episodes(podfetch)
 
 
 @cherrypy.expose
@@ -182,6 +179,39 @@ class _Subscription:
 
 
 @cherrypy.expose
+class _Episodes:
+
+    _DEFAULT_LIMIT = 10
+
+    def __init__(self, podfetch):
+        self._podfetch = podfetch
+
+    @cherrypy.tools.json_out()
+    def GET(self, limit=10):
+        if limit:
+            with _APIError.handle(TypeError, 400, 'Invalid value for limit'):
+                limit = int(limit)
+        else:
+            limit = self._DEFAULT_LIMIT
+
+        accept = Filter()
+
+        # fetch ALL episodes
+        episodes = [
+            e for e in itertools.chain(*[
+                s.episodes for s in self._podfetch.iter_subscriptions()
+            ])
+            if accept(e)
+        ]
+
+        # sort by date and fetch n newest
+        episodes.sort(key=lambda e: e.pubdate, reverse=True)
+        episodes = episodes[:limit]
+
+        return episodes
+
+
+@cherrypy.expose
 class _Episode:
 
     def __init__(self):
@@ -220,10 +250,14 @@ class _APIError(cherrypy.HTTPError):
 
 class _PodfetchEncoder(JSONEncoder):
 
+    _DATE_FORMAT = '%Y-%m-%dT%H:%M:%S'
+
     def default(self, obj):
         LOG.debug('default: %r', obj)
         if isinstance(obj, Subscription):
             return self._encode_subscription(obj)
+        elif isinstance(obj, Episode):
+            return self._encode_episode(obj)
         else:
             return JSONEncoder.default(self, obj)
 
@@ -237,3 +271,16 @@ class _PodfetchEncoder(JSONEncoder):
             'enabled': sub.enabled,
             'filename_template': sub.filename_template,
         }
+
+    def _encode_episode(self, episode):
+        data = {
+            'id': episode.id,
+            'subscription_name': episode.subscription.name,
+            'title': episode.title,
+            'description': episode.description,
+            'files': episode.files,
+        }
+        if episode.published:
+            data['pubdate'] = episode.published.strftime(_PodfetchEncoder._DATE_FORMAT)
+
+        return data
