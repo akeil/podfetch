@@ -30,7 +30,7 @@ class Web:
     def __init__(self, app, options):
         self._podfetch = app
 
-    def startup(self):
+    def run(self):
         # read config and find out which interface to listen to
         port = 8080
 
@@ -38,6 +38,7 @@ class Web:
         # /app
         # /subscriptions
         # /subscription/NAME
+        # /episodes/LIMIT
 
         conf = {'/':
             {
@@ -45,10 +46,16 @@ class Web:
             }
         }
         cherrypy.config['tools.json_out.handler'] = _json_encoder
+        LOG.debug('Start CherryPy')
         cherrypy.quickstart(_Root(self._podfetch), '/', conf)
 
-    def shutdown(self):
-        pass
+    def stop(self):
+        LOG.debug('Stop CherryPy')
+        cherrypy.engine.stop()
+        cherrypy.engine.exit()  # both are needed
+
+    def __repr__(self):
+        return '<WebAPI>'
 
 
 @cherrypy.expose

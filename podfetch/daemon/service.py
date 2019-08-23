@@ -1,7 +1,9 @@
 #-*- coding: utf-8 -*-
 '''Podfetch daemon main module.'''
 import logging
+import signal
 from threading import Timer
+from threading import Thread
 
 from podfetch.daemon.webapi import Web
 
@@ -10,14 +12,14 @@ LOG = logging.getLogger(__name__)
 
 
 def run(app, options):
-
     daemon = Daemon(app, options)
-    try:
-        daemon.start()
-    except KeyboardInterrupt:
-        pass
 
-    daemon.stop()
+    def on_sigint(sig, frame):
+        daemon.stop()
+
+    signal.signal(signal.SIGINT, on_sigint)
+    daemon.start()
+    signal.pause()  #wait ...
 
 
 class Daemon:
@@ -28,20 +30,23 @@ class Daemon:
         self._timer = None
         self._interval = options.daemon.update_interval
         self._services = [
-            Web(app, options)
+            Web(app, options),
         ]
 
     def start(self):
         LOG.debug('Daemon starts')
         LOG.debug('Timer starts (interval %s minutes)', self._interval)
         self._start_timer()
+
+        n = 0
         for service in self._services:
             LOG.info('Starting service %r', service)
-            # run each service in its own thread
-            service.startup()
-
-
-        # wait for sigterm/stop()
+            worker = Thread(
+                target=service.run,
+                daemon=True,
+                name='service-worker-%d' % n)
+            worker.start()
+            n += 1
 
     def stop(self):
         LOG.debug('Daemon stops')
@@ -51,7 +56,7 @@ class Daemon:
 
         for service in self._services:
             LOG.debug('Shutdown %r', service)
-            service.shutdown()
+            service.stop()
 
     def _start_timer(self):
         if self._timer:
