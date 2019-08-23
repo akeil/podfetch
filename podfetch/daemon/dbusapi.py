@@ -3,11 +3,14 @@
 
 pip install dbus-python
 '''
+import itertools
 import logging
 
 import dbus
 from dbus import service
 from dbus.mainloop.glib import DBusGMainLoop
+
+from podfetch.predicate import Filter
 
 
 LOG = logging.getLogger(__name__)
@@ -63,3 +66,35 @@ class _DBusPodfetch(dbus.service.Object):
             'name': sub.name,
             'title': sub.title,
         }
+
+    @dbus.service.method(_IFACE, in_signature='i', out_signature='a(sss(iiiiii)a(sss))')
+    def Episodes(self, limit):
+        # TODO: check limit > 0
+        accept = Filter()
+
+        # fetch ALL episodes
+        episodes = [
+            e for e in itertools.chain(*[
+                s.episodes for s in self._podfetch.iter_subscriptions()
+            ])
+            if accept(e)
+        ]
+
+        # sort by date and fetch n newest
+        episodes.sort(key=lambda e: e.pubdate, reverse=True)
+        episodes = episodes[:limit]
+
+        # marshal to tuple (struct)
+        # signature: a(sss(iiiiii)a(sss))
+        #            ^ ^  ^       ^
+        #            | |  |       `-- array with file-structs, three strings
+        #            | |  `---------- timetuple with six ints
+        #            | `------------- three string attributes
+        #            `--------------- array of structs
+        return [(
+            e.id,
+            e.subscription.name,
+            e.title,
+            tuple(e.pubdate[0:6]) if e.pubdate else (0, 0, 0, 0, 0, 0),
+            e.files or []
+        ) for e in episodes]
