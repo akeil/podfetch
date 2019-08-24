@@ -24,13 +24,13 @@ def start(app, options):
     # /subscriptions
     # /subscription/NAME
     # /episodes/LIMIT
-
     conf = {'/':
         {
             'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
         }
     }
     cherrypy.config['tools.json_out.handler'] = _json_encoder
+    cherrypy.config['engine.autoreload.on'] = False
     LOG.debug('Start CherryPy')
     cherrypy.quickstart(_Root(app), '/', conf)
 

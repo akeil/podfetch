@@ -75,12 +75,10 @@ setup(
         ],
         'podfetch.service.start': [
             'scheduler = podfetch.daemon.scheduler:start',
-            'dbus = podfetch.daemon.dbusapi:start',
             'web = podfetch.daemon.webapi:start',
         ],
         'podfetch.service.stop': [
             'scheduler = podfetch.daemon.scheduler:stop',
-            'dbus = podfetch.daemon.dbusapi:stop',
             'web = podfetch.daemon.webapi:stop',
         ],
     }

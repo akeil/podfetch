@@ -867,7 +867,6 @@ CFG_TYPES = {
     CFG_DEFAULT_SECTION: {
         'verbose': _boolean,
         'quiet': _boolean,
-        #'log_level': int,
         'update_threads': int,
         'config_dir': _path,
         'index_dir': _path,
@@ -879,6 +878,7 @@ CFG_TYPES = {
     },
     'daemon': {
         'update_interval': int,
+        'pidfile': _path,
     }
 }
 
