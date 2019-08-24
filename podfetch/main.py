@@ -26,6 +26,7 @@ except ImportError:
 
 import podfetch
 from podfetch import application
+from podfetch.daemon import service
 from podfetch.predicate import Filter
 from podfetch.predicate import WildcardFilter
 from podfetch.predicate import NameFilter
@@ -699,8 +700,7 @@ def _daemon(subs, common):
     )
 
     def do_daemon(app, options):
-        from podfetch.daemon.service import run
-        return run(app, options)
+        return service.run(app, options)
 
     daemon.set_defaults(func=do_daemon)
 

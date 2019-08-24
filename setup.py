@@ -3,7 +3,8 @@
 import os
 import sys
 
-from distutils.core import setup
+from setuptools import find_packages
+from setuptools import setup
 from setuptools.command.test import test as TestCommand
 
 
@@ -37,9 +38,7 @@ setup(
     author='Alexander Keil',
     author_email='alex@akeil.net',
     url='https://github.com/akeil/podfetch',
-    packages=[
-        'podfetch',
-    ],
+    packages=find_packages(),
     package_dir={'podfetch': 'podfetch'},
     include_package_data=True,
     install_requires=requires,
@@ -73,6 +72,16 @@ setup(
             'updates_complete = podfetch.hooks:on_updates_complete',
             'subscription_added = podfetch.hooks:on_subscription_added',
             'subscription_removed = podfetch.hooks:on_subscription_removed',
+        ],
+        'podfetch.service.start': [
+            'scheduler = podfetch.daemon.scheduler:start',
+            'dbus = podfetch.daemon.dbusapi:start',
+            'web = podfetch.daemon.webapi:start',
+        ],
+        'podfetch.service.stop': [
+            'scheduler = podfetch.daemon.scheduler:stop',
+            'dbus = podfetch.daemon.dbusapi:stop',
+            'web = podfetch.daemon.webapi:stop',
         ],
     }
 )
