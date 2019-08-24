@@ -73,11 +73,9 @@ setup(
             'subscription_added = podfetch.hooks:on_subscription_added',
             'subscription_removed = podfetch.hooks:on_subscription_removed',
         ],
-        'podfetch.service.start': [
-            'scheduler = podfetch.daemon.scheduler:start',
-        ],
-        'podfetch.service.stop': [
-            'scheduler = podfetch.daemon.scheduler:stop',
+        'podfetch.service': [
+            'start = podfetch.daemon.scheduler:start',
+            'stop = podfetch.daemon.scheduler:stop',
         ],
     }
 )

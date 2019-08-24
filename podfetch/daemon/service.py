@@ -12,8 +12,7 @@ from podfetch.exceptions import PodfetchError
 
 LOG = logging.getLogger(__name__)
 
-EP_SERVICE_START = 'podfetch.service.start'
-EP_SERVICE_STOP = 'podfetch.service.stop'
+EP_SERVICE = 'podfetch.service'
 
 
 def run(app, options):
@@ -31,7 +30,7 @@ def run(app, options):
     try:
         LOG.info('Starting services.')
         counter = 0
-        for ep in iter_entry_points(EP_SERVICE_START):
+        for ep in iter_entry_points(EP_SERVICE, name='start'):
             LOG.info('Starting service %r', ep)
             try:
                 start = ep.load()
@@ -56,7 +55,7 @@ def run(app, options):
 
 def _stop_services():
     LOG.info('Stopping services.')
-    for ep in iter_entry_points(EP_SERVICE_STOP):
+    for ep in iter_entry_points(EP_SERVICE, name='stop'):
         LOG.info('Stopping %r', ep)
         try:
             stop = ep.load()
