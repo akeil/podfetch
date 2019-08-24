@@ -18,41 +18,35 @@ def run(app, options):
     Will start all registered services and wait for SIGINT.
     On SIGINT, services will be shutdown and the daemon stops.
     '''
-    services = _ServiceManager(app, options)
 
-    def on_sigint(sig, frame):
-        services.stop()
+    def on_sigint(unused_sig, unused_frame):
+        LOG.info('Stopping services.')
+        services = _load_services()
+        for service in services:
+            try:
+                service.stop()
+            except Exception as err:
+                LOG.error('Error stopping service: %s', err)
+                LOG.debug(err, exc_info=True)
 
     signal.signal(signal.SIGINT, on_sigint)
-    services.start()
+
+    LOG.info('Starting services.')
+    services = _load_services()
+    for counter, service in enumerate(services):
+        worker = Thread(
+            target=service.start,
+            args=(app, options),
+            daemon=True,
+            name='service-worker-%d' % counter)
+        worker.start()
+
     signal.pause()  # wait ...
 
 
-class _ServiceManager:
-
-    def __init__(self, app, options):
-        self._app = app
-        self._options = options
-        self._services = [
-            dbusapi,
-            scheduler,
-            webapi,
-        ]
-
-    def start(self):
-        LOG.debug('Daemon starts')
-
-        n = 0
-        for service in self._services:
-            worker = Thread(
-                target=service.start,
-                args=(self._app, self._options),
-                daemon=True,
-                name='service-worker-%d' % n)
-            worker.start()
-            n += 1
-
-    def stop(self):
-        LOG.debug('Daemon stops')
-        for service in self._services:
-            service.stop()
+def _load_services():
+    return [
+        dbusapi,
+        scheduler,
+        webapi,
+    ]
