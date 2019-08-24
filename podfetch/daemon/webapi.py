@@ -16,46 +16,30 @@ from podfetch.predicate import Filter
 LOG = logging.getLogger(__name__)
 
 
-# taken from cherrypy's default _json_inner_handler
-# https://github.com/cherrypy/cherrypy/blob/master/cherrypy/lib/jsontools.py
-def _json_encoder(*args, **kwargs):
-    value = cherrypy.serving.request._json_inner_handler(*args, **kwargs)
-    encoder = _PodfetchEncoder()
-    for chunk in encoder.iterencode(value):
-        yield chunk.encode('utf-8')
+def start(app, options):
+    # read config and find out which interface to listen to
+    port = 8080
 
+    # urls
+    # /app
+    # /subscriptions
+    # /subscription/NAME
+    # /episodes/LIMIT
 
-class Web:
-
-    def __init__(self, app, options):
-        self._podfetch = app
-
-    def run(self):
-        # read config and find out which interface to listen to
-        port = 8080
-
-        # urls
-        # /app
-        # /subscriptions
-        # /subscription/NAME
-        # /episodes/LIMIT
-
-        conf = {'/':
-            {
-                'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
-            }
+    conf = {'/':
+        {
+            'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
         }
-        cherrypy.config['tools.json_out.handler'] = _json_encoder
-        LOG.debug('Start CherryPy')
-        cherrypy.quickstart(_Root(self._podfetch), '/', conf)
+    }
+    cherrypy.config['tools.json_out.handler'] = _json_encoder
+    LOG.debug('Start CherryPy')
+    cherrypy.quickstart(_Root(app), '/', conf)
 
-    def stop(self):
-        LOG.debug('Stop CherryPy')
-        cherrypy.engine.stop()
-        cherrypy.engine.exit()  # both are needed
 
-    def __repr__(self):
-        return '<WebAPI>'
+def stop():
+    LOG.debug('Stop CherryPy')
+    cherrypy.engine.stop()
+    cherrypy.engine.exit()  # both are needed
 
 
 @cherrypy.expose
@@ -92,7 +76,7 @@ class _Subscription:
     def __init__(self, podfetch):
         self._podfetch = podfetch
 
-    @cherrypy.tools.json_out(handler=_json_encoder)
+    @cherrypy.tools.json_out()
     def GET(self, name):
         name = name.strip()
 
@@ -253,6 +237,15 @@ class _APIError(cherrypy.HTTPError):
         response.status = self.status
         response.headers.pop('Content-Length', None)
         response.body = json.dumps({'message': self._message}).encode('utf-8')
+
+
+# taken from cherrypy's default _json_inner_handler
+# https://github.com/cherrypy/cherrypy/blob/master/cherrypy/lib/jsontools.py
+def _json_encoder(*args, **kwargs):
+    value = cherrypy.serving.request._json_inner_handler(*args, **kwargs)
+    encoder = _PodfetchEncoder()
+    for chunk in encoder.iterencode(value):
+        yield chunk.encode('utf-8')
 
 
 class _PodfetchEncoder(JSONEncoder):

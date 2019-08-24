@@ -9,6 +9,7 @@ import logging
 import dbus
 from dbus import service
 from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib
 
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.predicate import Filter
@@ -20,34 +21,30 @@ LOG = logging.getLogger(__name__)
 _IFACE = 'de.akeil.Podfetch'
 _OBJECT_PATH = '/de/akeil/Podfetch'
 
+_mainloop = None
 
-class DBus:
 
-    def __init__(self, app, options):
-        self._podfetch = app
-        self._mainloop = None
+def start(app, options):
+    # start event loop *before* connecting to bus
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SessionBus()
+    # this makes us visible under de.akeil.PodfetchService
+    # NOTE: only works, if we assign it to a variable (???)
+    _ = dbus.service.BusName('de.akeil.PodfetchService', bus,
+        allow_replacement=True,
+        replace_existing=True,
+    )
 
-    def run(self):
-        # start event loop *before* connecting to bus
-        DBusGMainLoop(set_as_default=True)
-        bus = dbus.SessionBus()
-        # this makes us visible under de.akeil.PodfetchService
-        # NOTE: only works, if we assign it to a variable (???)
-        _ = dbus.service.BusName('de.akeil.PodfetchService', bus)
-        LOG.debug('DBus bus-name: %r', bus.get_unique_name())
-        # export our service
-        service = _DBusPodfetch(bus, _OBJECT_PATH, self._podfetch)
+    # export our service
+    service = _DBusPodfetch(bus, _OBJECT_PATH, app)
 
-        from gi.repository import GLib
-        self._mainloop = GLib.MainLoop()
-        self._mainloop.run()
+    global _mainloop
+    _mainloop = GLib.MainLoop()
+    _mainloop.run()
 
-    def stop(self):
-        if self._mainloop:
-            self._mainloop.quit()
 
-    def __repr__(self):
-        return '<DBus>'
+def stop():
+    _mainloop.quit()
 
 
 class NotFoundException(dbus.DBusException):

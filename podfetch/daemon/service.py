@@ -2,11 +2,11 @@
 '''Podfetch daemon main module.'''
 import logging
 import signal
-from threading import Timer
 from threading import Thread
 
-from podfetch.daemon.dbusapi import DBus
-from podfetch.daemon.webapi import Web
+from podfetch.daemon import dbusapi
+from podfetch.daemon import scheduler
+from podfetch.daemon import webapi
 
 
 LOG = logging.getLogger(__name__)
@@ -31,10 +31,12 @@ def run(app, options):
 class _ServiceManager:
 
     def __init__(self, app, options):
+        self._app = app
+        self._options = options
         self._services = [
-            Web(app, options),
-            _Scheduler(app, options),
-            DBus(app, options),
+            dbusapi,
+            scheduler,
+            webapi,
         ]
 
     def start(self):
@@ -42,9 +44,9 @@ class _ServiceManager:
 
         n = 0
         for service in self._services:
-            LOG.info('Starting service %r', service)
             worker = Thread(
-                target=service.run,
+                target=service.start,
+                args=(self._app, self._options),
                 daemon=True,
                 name='service-worker-%d' % n)
             worker.start()
@@ -53,37 +55,4 @@ class _ServiceManager:
     def stop(self):
         LOG.debug('Daemon stops')
         for service in self._services:
-            LOG.debug('Shutdown %r', service)
             service.stop()
-
-
-class _Scheduler:
-
-    def __init__(self, app, options):
-        self._timer = None
-        self._interval = options.daemon.update_interval * 60.0  # minutes to seconds
-
-    def run(self):
-        self._start_timer()
-
-    def stop(self):
-        self._cancel_timer()
-
-    def _start_timer(self):
-        self._cancel_timer()
-
-        def tick():
-            self._app.update()
-            self._start_timer()  # schedule next
-
-        self._timer = Timer(self._interval, tick)
-        self._timer.daemon = True
-        self._timer.start()
-
-    def _cancel_timer(self):
-        if self._timer:
-            self._timer.cancel()
-            self._timer = None
-
-    def __repr__(self):
-        return '<Scheduler interval=%s>' % self._interval
