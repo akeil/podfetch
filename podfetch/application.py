@@ -162,6 +162,12 @@ class Podfetch:
                 yield episode
 
     def list_episodes(self, *sub_names, since=None, until=None, limit=None):
+        '''Get a sorted list of episodes from all (matching) subscriptons.
+
+        The list is sorted by ``pubdate``
+        and optionally filtered by ``since`` and ``until``
+        and reduced to the top ``limit`` entries.
+        '''
         if limit and limit < 0:
             raise ValueError(('Invalid limit {} for ls.'
                 ' Expected a positive integer').format(limit))

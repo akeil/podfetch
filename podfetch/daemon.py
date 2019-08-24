@@ -1,5 +1,10 @@
 #-*- coding: utf-8 -*-
-'''Podfetch daemon main module.'''
+'''Podfetch daemon main module.
+
+Used when podfetch is started in daemon mode.
+
+Starts and stops service plugins.
+'''
 import logging
 import os
 from pathlib import Path
@@ -28,29 +33,34 @@ def run(app, options):
 
     _write_pidfile(options)
     try:
-        LOG.info('Starting services.')
-        counter = 0
-        for ep in iter_entry_points(EP_SERVICE, name='start'):
-            LOG.info('Starting service %r', ep)
-            try:
-                start = ep.load()
-            except ImportError as e:
-                LOG.error('Failed to load entry point %r', ep)
-                continue
-
-            worker = Thread(
-                target=start,
-                args=(app, options),
-                daemon=True,
-                name='service-worker-%d' % counter)
-            worker.start()
-            counter += 1
-
-        LOG.debug('Started %d services', counter)
-
+        _start_services(app, options)
         signal.pause()  # wait ...
     finally:
         _remove_pidfile(options)
+
+
+# Services --------------------------------------------------------------------
+
+
+def _start_services(app, options):
+    LOG.info('Starting services.')
+    counter = 0
+    for ep in iter_entry_points(EP_SERVICE, name='start'):
+        LOG.info('Starting service %r', ep)
+        try:
+            start = ep.load()
+        except ImportError as e:
+            LOG.error('Failed to load entry point %r', ep)
+            continue
+
+        Thread(
+            target=start,
+            args=(app, options),
+            daemon=True,
+            name='service-worker-%d' % counter).start()
+        counter += 1
+
+    LOG.debug('Started %d services', counter)
 
 
 def _stop_services():
@@ -68,6 +78,9 @@ def _stop_services():
         except Exception as err:
             LOG.error('Error stopping service: %s', err)
             LOG.debug(err, exc_info=True)
+
+
+# PID file --------------------------------------------------------------------
 
 
 def read_pid(options):
