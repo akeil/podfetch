@@ -26,6 +26,7 @@ Context:
     subscription.content_dir
 
 '''
+import itertools
 import logging
 import os
 import threading
@@ -46,6 +47,9 @@ import feedparser
 from podfetch.fsstorage import FileSystemStorage
 from podfetch.model import Subscription
 from podfetch.predicate import Filter
+from podfetch.predicate import PubdateAfter
+from podfetch.predicate import PubdateBefore
+from podfetch.predicate import WildcardFilter
 from podfetch import exceptions as ex
 
 
@@ -156,6 +160,32 @@ class Podfetch:
         for subscription in self.iter_subscriptions(predicate=sub_filter):
             for episode in subscription.episodes:
                 yield episode
+
+    def list_episodes(self, *sub_names, since=None, until=None, limit=None):
+        if limit and limit < 0:
+            raise ValueError(('Invalid limit {} for ls.'
+                ' Expected a positive integer').format(limit))
+
+        # subscription filter
+        predicate = WildcardFilter(*sub_names)
+
+        # episode filter
+        accept = Filter()
+        if since:
+            accept = accept.and_is(PubdateAfter(since))
+        if until:
+            accept = accept.and_is(PubdateBefore(until))
+
+        episodes = [
+            e for e in self.iter_episodes(sub_filter=predicate)
+            if accept(e)
+        ]
+        episodes.sort(key=lambda e: e.pubdate, reverse=True)
+
+        if limit:
+            episodes = episodes[:limit]
+        return episodes
+
 
     def update(self, predicate=None, force=False):
         '''Fetch new episodes for the given ``subscription_names``.

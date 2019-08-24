@@ -10,7 +10,6 @@ import cherrypy
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.model import Episode
 from podfetch.model import Subscription
-from podfetch.predicate import Filter
 
 
 LOG = logging.getLogger(__name__)
@@ -185,21 +184,7 @@ class _Episodes:
         else:
             limit = self._DEFAULT_LIMIT
 
-        accept = Filter()
-
-        # fetch ALL episodes
-        episodes = [
-            e for e in itertools.chain(*[
-                s.episodes for s in self._podfetch.iter_subscriptions()
-            ])
-            if accept(e)
-        ]
-
-        # sort by date and fetch n newest
-        episodes.sort(key=lambda e: e.pubdate, reverse=True)
-        episodes = episodes[:limit]
-
-        return episodes
+        return self._podfetch.list_episodes(limit=limit)
 
 
 @cherrypy.expose

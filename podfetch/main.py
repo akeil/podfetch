@@ -6,7 +6,6 @@ Command line interface for podfetch
 import argparse
 import hashlib
 import io
-import itertools
 import logging
 import os
 import re
@@ -30,8 +29,6 @@ from podfetch.daemon import service
 from podfetch.predicate import Filter
 from podfetch.predicate import WildcardFilter
 from podfetch.predicate import NameFilter
-from podfetch.predicate import PubdateAfter
-from podfetch.predicate import PubdateBefore
 from podfetch.exceptions import NoSubscriptionError
 from podfetch.exceptions import UserError
 from podfetch.model import Subscription
@@ -360,35 +357,15 @@ def _list(subs, common):
             out.write('{}\n'.format(header))
             out.write('{}\n'.format('-' * len(header)))
 
-        # filter subscriptions
-        predicate = WildcardFilter(*options.patterns)
-
-        # filter episodes
-        accept = Filter()
-        if options.since:
-            options.all = True
-            accept = accept.and_is(PubdateAfter(options.since))
-        if options.until:
-            options.all = True
-            accept = accept.and_is(PubdateBefore(options.until))
-
-        log.debug('episode filter: {a!r}'.format(a=accept))
-        episodes = [
-            e for e in itertools.chain(*[
-                s.episodes for s in app.iter_subscriptions(predicate=predicate)
-            ])
-            if accept(e)
-        ]
-
-        # sort all selected episodes by date, then reduce to N items
-        episodes.sort(key=lambda e: e.pubdate, reverse=True)
-        if not options.all:
+        if options.since or options.until:
+            limit = None
+        else:
             limit = options.newest or options.ls_limit
-            if limit < 0:
-                raise ValueError(('Invalid limit {} for ls.'
-                    ' Expected a positive integer').format(limit))
 
-            episodes = episodes[:limit]
+        episodes = app.list_episodes(*options.patterns,
+            since=options.since,
+            until=options.until,
+            limit=limit)
 
         # write episodes
         lastdate = None

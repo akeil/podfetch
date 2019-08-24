@@ -12,7 +12,6 @@ from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
 from podfetch.exceptions import NoSubscriptionError
-from podfetch.predicate import Filter
 from podfetch.predicate import NameFilter
 
 
@@ -127,22 +126,7 @@ class _DBusPodfetch(dbus.service.Object):
     @dbus.service.method(_IFACE, in_signature='i', out_signature='a(sss(iiiiii)a(sss))')
     def Episodes(self, limit):
         '''Show ``limit`` recent episodes.'''
-        if limit <= 0:
-            raise InvalidArgumentException('Limit must be a positive value.')
-
-        accept = Filter()
-
-        # fetch ALL episodes
-        episodes = [
-            e for e in itertools.chain(*[
-                s.episodes for s in self._podfetch.iter_subscriptions()
-            ])
-            if accept(e)
-        ]
-
-        # sort by date and fetch n newest
-        episodes.sort(key=lambda e: e.pubdate, reverse=True)
-        episodes = episodes[:limit]
+        episodes = self._podfetch.list_episodes(limit=limit)
 
         # marshal to tuple (struct)
         # signature: a(sss(iiiiii)a(sss))
