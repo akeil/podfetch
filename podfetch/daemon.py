@@ -5,6 +5,7 @@ Used when podfetch is started in daemon mode.
 
 Starts and stops service plugins.
 '''
+import atexit
 import logging
 import os
 from pathlib import Path
@@ -24,19 +25,16 @@ def run(app, options):
     '''Run a podfetch instance in daemon mode.
 
     Will start all registered services and wait for SIGINT.
-    On SIGINT, services will be shutdown and the daemon stops.
+    On SIGINT or SIGTERM, services will be shutdown and the daemon stops.
     '''
-    def on_sigint(unused_sig, unused_frame):
-        _stop_services()
-
-    signal.signal(signal.SIGINT, on_sigint)
+    signal.signal(signal.SIGINT, _stop_services)
+    signal.signal(signal.SIGTERM, _stop_services)
 
     _write_pidfile(options)
-    try:
-        _start_services(app, options)
-        signal.pause()  # wait ...
-    finally:
-        _remove_pidfile(options)
+    atexit.register(_remove_pidfile, options)
+
+    _start_services(app, options)
+    signal.pause()  # wait ...
 
 
 # Services --------------------------------------------------------------------
@@ -63,7 +61,7 @@ def _start_services(app, options):
     LOG.debug('Started %d services', counter)
 
 
-def _stop_services():
+def _stop_services(*args):
     LOG.info('Stopping services.')
     for ep in iter_entry_points(EP_SERVICE, name='stop'):
         LOG.info('Stopping %r', ep)
@@ -112,4 +110,5 @@ def _remove_pidfile(options):
     try:
         path.unlink()
     except FileNotFoundError:
+        LOG.warning('Attempt to remove non-existing pidfile.')
         pass
