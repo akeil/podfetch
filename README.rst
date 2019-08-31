@@ -58,6 +58,9 @@ Configuration options are:
     # ignore these files in the subscriptions directory
     ignore = .*
 
+    [player]
+    command = /usr/bin/cvlc
+
 
 Subscriptions
 =============
@@ -101,3 +104,22 @@ Interesting Directories
 ``~/.cache/podfetch``
     Recent values from *etag* and *last-modified* HTTP headers
     for each subscription.
+
+
+Player
+======
+Yo can configure any executable as the player ``command``.
+the command will be called like this::
+
+    $CMD /path/to/audio.mp3
+
+For episodes that have multiple local files,
+the player will be called with multiple arguments like this::
+
+    $CMD /path/to/audio-1.mp3 /path/to/audio-2.mp3
+
+Example players are:
+
+- ``/usr/bin/vlc``
+- ``/usr/bin/cvlc`` (no UI)
+- ``/usr/bin/mplayer``
