@@ -438,16 +438,6 @@ class Podfetch:
             LOG.info('Delete old subscription %r.', old_filename)
             os.unlink(old_filename)
 
-    def play(self, wait=False):
-        from podfetch.player import CmdPlayer
-        player = CmdPlayer('/usr/bin/cvlc')
-        episodes = self.list_episodes()
-        episode = episodes[0]
-        LOG.debug('Will play %r', episode)
-        player.play(episode, wait=wait)
-        # TODO if we did wait, mark the episode as "listened"
-        # then save
-
     def run_hooks(self, event, *args):
         '''Run hooks for the given ``event``.'''
         LOG.debug('Run hooks for event %r', event)

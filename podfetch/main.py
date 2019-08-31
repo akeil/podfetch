@@ -677,8 +677,15 @@ def _play(subs, common):
         help='Play episodes'
     )
 
+    def choose_episode(app):
+        episodes = app.list_episodes()
+        return episodes[0]
+
     def do_play(app, options):
-        app.play()
+        from podfetch.player import Player
+        player = Player(app, options)
+        episode = choose_episode(app)
+        player.play(episode, wait=True)
 
     play.set_defaults(func=do_play)
 
@@ -893,7 +900,10 @@ CFG_TYPES = {
     'daemon': {
         'update_interval': int,
         'pidfile': _path,
-    }
+    },
+    'player': {
+        'command': str,
+    },
 }
 
 

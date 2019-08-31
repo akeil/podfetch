@@ -13,6 +13,13 @@ from podfetch.exceptions import PodfetchError
 LOG = logging.getLogger(__name__)
 
 
+def Player(app, options):
+    # choose player implementation
+    factory = CmdPlayer
+
+    return factory(app, options)
+
+
 class PlayerError(PodfetchError):
     pass
 
@@ -21,7 +28,8 @@ class UnsupportedCommandError(PlayerError):
     '''Raised when a player implementation does not support a given command.'''
     pass
 
-class Player:
+
+class BasePlayer:
 
     def play(self, episode, wait=False):
         raise UnsupportedCommandError
@@ -33,10 +41,10 @@ class Player:
         raise UnsupportedCommandError
 
 
-class CmdPlayer(Player):
+class CmdPlayer(BasePlayer):
 
-    def __init__(self, cmd):
-        self._cmd = cmd
+    def __init__(self, app, options):
+        self._cmd = options.player.command
         self._proc = None
 
     def play(self, episode, wait=False):
@@ -48,8 +56,7 @@ class CmdPlayer(Player):
             raise PlayerError('Episode %r has no local files' % episode)
 
         args = [self._cmd, ] + files
-        # check if files actually exist?
-        LOG.debug('Player: %r', ' '.join(args))
+        LOG.debug('Exec %r', ' '.join(args))
         self._proc = Popen(
             args,
             stdin=DEVNULL,
@@ -61,6 +68,7 @@ class CmdPlayer(Player):
             try:
                 self._proc.wait()
             except Exception:
+                # mark episode as listened if we have listened for at least *n* minutes
                 self.stop()
                 raise
 
