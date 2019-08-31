@@ -26,6 +26,7 @@ except ImportError:
 import podfetch
 from podfetch import application
 import podfetch.daemon
+from podfetch.player import Player
 from podfetch.predicate import Filter
 from podfetch.predicate import WildcardFilter
 from podfetch.predicate import NameFilter
@@ -683,15 +684,52 @@ def _play(subs, common):
         help='Wait for the player to finish.'
     )
 
-    def choose_episode(app):
-        episodes = app.list_episodes()
-        return episodes[0]
+    out = sys.stdout
+
+    def choose_episode(app, options):
+        limit = options.ls_limit
+        names = []
+        episodes = app.list_episodes(*names, limit=limit)
+        out.write('Select Episode\n')
+        for index, episode in enumerate(episodes):
+            number = index + 1
+            out.write('{: >2d} | '.format(number))
+            out.write('{: <16s} | {}'.format(
+                episode.subscription.title[:16],
+                episode.title[:55]
+            ))
+            out.write('\n')
+
+        return capture_episode(episodes)
+
+    def capture_episode(episodes):
+        selected = input('Play episode <number>: ')
+        if not selected:
+            out.write('No episode selected, exit.\n')
+            return
+
+        try:
+            selected_index = int(selected) - 1
+            return episodes[selected_index]
+        except (ValueError, IndexError):
+            out.write('Error: Invalid episode number {!r}'.format(selected))
+            out.write('\n')
+            return capture_episode(episodes)
 
     def do_play(app, options):
-        from podfetch.player import Player
+        episode = choose_episode(app, options)
+        if not episode:
+            return EXIT_OK
+
+        out.write('*** Playing ***\n')
+        out.write('Podcast:   {}\n'.format(episode.subscription.title))
+        out.write('Episode:   {}\n'.format(episode.title))
+        if episode.published:
+            out.write('Published: {}\n'.format(episode.published.strftime('%Y-%m-%d')))
+
         player = Player(app, options)
-        episode = choose_episode(app)
         player.play(episode, wait=options.wait)
+        return EXIT_OK
 
     play.set_defaults(func=do_play)
 
