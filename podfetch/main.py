@@ -687,9 +687,9 @@ def _play(subs, common):
     )
 
     play.add_argument(
-        '--wait',
+        '--no-wait',
         action='store_true',
-        help='Wait for the player to finish.'
+        help='Exit immediately, do not wait for the player to finish.'
     )
 
     out = sys.stdout
@@ -741,7 +741,7 @@ def _play(subs, common):
             out.write('Published: {}\n'.format(episode.published.strftime('%Y-%m-%d')))
 
         player = Player(app, options)
-        player.play(episode, wait=options.wait)
+        player.play(episode, wait=not options.no_wait)
         return EXIT_OK
 
     play.set_defaults(func=do_play)
