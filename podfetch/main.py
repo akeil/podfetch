@@ -677,6 +677,12 @@ def _play(subs, common):
         help='Play episodes'
     )
 
+    play.add_argument(
+        '--wait',
+        action='store_true',
+        help='Wait for the player to finish.'
+    )
+
     def choose_episode(app):
         episodes = app.list_episodes()
         return episodes[0]
@@ -685,7 +691,7 @@ def _play(subs, common):
         from podfetch.player import Player
         player = Player(app, options)
         episode = choose_episode(app)
-        player.play(episode, wait=True)
+        player.play(episode, wait=options.wait)
 
     play.set_defaults(func=do_play)
 
