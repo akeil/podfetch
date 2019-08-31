@@ -679,6 +679,14 @@ def _play(subs, common):
     )
 
     play.add_argument(
+        'subscription_name',
+        metavar='NAME',
+        nargs='?',
+        default='*',
+        help='Optional name of the subscription to choose from'
+    )
+
+    play.add_argument(
         '--wait',
         action='store_true',
         help='Wait for the player to finish.'
@@ -688,8 +696,13 @@ def _play(subs, common):
 
     def choose_episode(app, options):
         limit = options.ls_limit
-        names = []
+        names = [options.subscription_name]
         episodes = app.list_episodes(*names, limit=limit)
+
+        if not episodes:
+            out.write('No episodes found for {!r}.\n'.format(options.subscription_name))
+            return
+
         out.write('Select Episode\n')
         for index, episode in enumerate(episodes):
             number = index + 1
