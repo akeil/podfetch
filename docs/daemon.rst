@@ -2,109 +2,114 @@
 Daemon
 ######
 
-.. note:: as of Version 0.6.2 this is **NOT IMPLEMENTED**
+Podfetch can be run in daemon mode by using:
 
-Podfetch can be run in daemon mode.
+.. code-block:: shell-session
+
+    $ podfetch daemon
+
 This means, podfetch will run "forever" and periodically check for updated
 feeds.
 
-There are two possible scenarios:
 
-:User Session:
-    podfetch is started from within a users (desktop) session.
-    The app will run in the background and will connect to the user's session
-    bus (DBus).
-    Additionally, a socket-based interface can be used to interact with the
-    daemon.
-:Systemwide:
-    podfetch is run in a system wide instance.
-    In this case, it will not connect to DBus but is still reachable
-    over the network based interface.
+Systemd Service
+###############
+To configure a podfetch daemon with systemd,
+create a ``podfetch-daemon.service`` file in the user directory for systemd
+(``~/.config/systemd/user/podfetch-daemon.service``).
 
-Network
+.. code-block:: ini
+
+    [Unit]
+    Description=Download podcasts with podfetch
+    After=network.target
+
+    [Service]
+    ExecStart=%h/.local/bin/podfetch daemon
+
+    [Install]
+    WantedBy=default.target
+
+Then start and enable with:
+
+.. code-block:: shell-session
+
+    $ systemd --user enable podfetch-daemon.service
+    $ systemd --user start podfetch-daemon.service
+
+
+Configuration
+#############
+
+
+Update Schedule
+===============
+The podfetch daemon will update all enabled feeds periodically.
+The update schedule can be configured in the ``daemon`` section
+of the config file like this:
+
+.. code-block:: ini
+
+    [podfetch]
+    ...
+
+    [daemon]
+    update_interval = 60
+
+
+Pidfile
+=======
+The daemon uses a pidfile to detect if another instance of podfetch is already
+running. The daemon is intended to be run with one instance per user.
+The location of the pidfile can be configured like this:
+
+.. code-block:: ini
+
+    [podfetch]
+    ...
+
+    [daemon]
+    pidfile = ~/.podfetch.pid
+
+
+Plugins
 #######
-The networked interface is HTTP based.
-It can be made available over a "normal" TCP connection
-or over a Unix domain socket.
-The interface is ReST based
-and additionally offers push funcionality over WebSockets.
+By default, the daemon mode will only have the periodic update feature.
+This can be extended with *plugins*.
 
+The daemon will load plugins from entry points under ``podfetch.service``.
 
-Resources
-=========
+:start: A plugin must implement the entry point named ``start``
+        which must refer to a callable that accepts a podfetch instance
+        and parsed options (as returned from *ConfigParser*):
 
+        .. code-block:: python
 
-App
----
+            start(app, options)
 
-URLs::
-    /app/update
-    /app/update/{NAME}
-    /app/purge
+        Each plugin is started in a separate thread.
+:stop:  A plugin *can* implement a ``stop`` entry point
+        which if present must refer to a callable that receives
+        *no arguments*:
 
-:POST: trigger the app-function
+        .. code-block:: python
 
-Parameters:
-:force: yes/no; forced update
+            stop()
 
+        The ``stop()`` function will be called before the daemon exits.
+        ``stop()`` is called from the **Main Thread**.
 
-Subscription
-------------
+Here is an example for the built-in scheduler plugin from ``setup.py``:
 
-URL: ``/subscription/{NAME}``
+.. code-block:: python
 
-:GET: subscription details
-:POST: create (option: update y/n)
-:PUT: update
-:PATCH: partial update
-:DELETE: permanently delete
-
-Parameters:
-
-:no-move: do not move existing files after changing filename template
-    for PUT and PATCH.
-:delete-episodes: yes/no, delete downloaded episodes
-    for DELETE
-
-
-Subscriptions (List)
---------------------
-
-URL: ``/subscriptions``
-
-:GET: list subscriptions
-
-List params:
-since DATE
-until DATE
-newest N
-all (y/n)
-
-
-Episode
--------
-:GET: details
-:PATCH: update partially (e.g. "read/unread")
-
-
-DBus
-####
-Intended for use with "applets" or other desktop related mini-apps.
-
-
-Components
-##########
-The daemon functionality is made up of the collowing components:
-
-Daemon
-initialized on startup, manages the lifecycle of the app
-(which is startup and shutdown - and possibly "reload")
-
-sets up all required services and interfaces
-and shuts them down again.
-
-web
-the web API with submodules REST and WebSocket
-
-DBus
-the DBus interface
+    setup(
+        # ...
+        entry_points={
+            # ...
+            'podfetch.service': [
+                'start = podfetch.scheduler:start',
+                'stop = podfetch.scheduler:stop',
+            ],
+        }
+    )
