@@ -211,6 +211,7 @@ def setup_argparser():
     _show(subs, common)
     _del(subs, common)
     _purge(subs, common)
+    _play(subs, common)
     _daemon(subs, common)
 
     return parser
@@ -667,6 +668,19 @@ def _edit(subs, common):
             )
 
     edit.set_defaults(func=do_edit)
+
+
+def _play(subs, common):
+    play = subs.add_parser(
+        'play',
+        parents=[common, ],
+        help='Play episodes'
+    )
+
+    def do_play(app, options):
+        app.play()
+
+    play.set_defaults(func=do_play)
 
 
 def _daemon(subs, common):
