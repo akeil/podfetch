@@ -15,8 +15,10 @@ Contents:
    installation
    usage
    cronjob
+   daemon
 
    modules/application
+   modules/model
 
 Indices and tables
 ==================

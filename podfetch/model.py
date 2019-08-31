@@ -11,13 +11,10 @@ Creating Subscription instances
 Instances of the ``Subscription`` class are normally created by the
 ``Podfetch`` application in one of two ways:
 
-    create new
-        uses Subscription.__init__()
-
-    load existing
-        uses Subscription.from_file()
-        which internally uses Subscription.__init__()
-        passing values from the config file.
+:create new: uses Subscription.__init__()
+:load existing: uses Subscription.from_file()
+    which internally uses Subscription.__init__()
+    passing values from the config file.
 
 '''
 import errno
@@ -62,7 +59,8 @@ class Subscription:
     ``Subscription`` instances are normally created and used by the
     :class:`Podfetch` application class.
 
-    Provides methods to :method:`update` itself from the RSS-feed.
+    Provides methods the ``update()`` method to fetch new episodes
+    from the RSS-feed.
 
     :var str name:
         The name of the subscription and also
@@ -71,7 +69,7 @@ class Subscription:
         and the name of cache-files generated for this subscription.
     :var str feed_url:
         The URL for the podcast-feed.
-        Read from the confoig file.
+        Read from the config file.
     :var str default_content_dir:
         The default content directory for the application.
         Individual subscriptions download to
@@ -121,6 +119,7 @@ class Subscription:
         '''The content directory to which episodes are downloaded.
 
         This is
+
         - either a subdirectory within the application wide ``content_dir``,
           named after this subscription
         - or an indivdually defined directory for this subscription only
@@ -368,6 +367,12 @@ class Episode(object):
     @classmethod
     def from_entry(cls, parent_subscription, supported_content, entry):
         '''Create an episode from the information in a feed entry.
+
+        :param Subscription parent_subscription:
+            The subscription where this episode belongs to.
+        :param dict(str: str) supported_content:
+            A map of supported content type (e.g. audio/ogg)
+            to file extensions (e.g. .ogg).
         :param object entry:
             The feed entry.
         :rtype object:
@@ -402,7 +407,7 @@ class Episode(object):
 
     @property
     def published(self):
-        ''''The ``pubdate`` as a datetime object.'''
+        '''The ``pubdate`` as a datetime object.'''
         if not self.pubdate:
             return None
         else:
@@ -732,6 +737,7 @@ def pretty(unpretty):
 
 def safe_filename(unsafe):
     '''Convert a string so that it is save for use as a filename.
+
     :param str unsafe:
         The potentially unsafe string.
     :rtype str:

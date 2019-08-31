@@ -382,7 +382,7 @@ class Podfetch:
         :param str url:
             *optional*, set a new source url.
         :param str title:
-            *optional, set a new title.
+            *optional*, set a new title.
         :param bool enabled:
             *optional*, enable or disable the feed.
         :param int max_episodes:
