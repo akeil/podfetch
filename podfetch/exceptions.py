@@ -17,6 +17,10 @@ class NoSubscriptionError(PodfetchError):
     pass
 
 
+class NoEpisodeError(PodfetchError):
+    pass
+
+
 class FeedGoneError(PodfetchError):
     '''Raised when we try to fetch an RSS feed that is marked as
     "Gone" (HTTP 410).'''

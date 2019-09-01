@@ -34,6 +34,7 @@ import requests
 
 from podfetch.exceptions import FeedGoneError
 from podfetch.exceptions import FeedNotFoundError
+from podfetch.exceptions import NoEpisodeError
 from podfetch.timehelper import UTC
 from podfetch.utils import require_directory
 from podfetch.utils import delete_if_exists
@@ -199,8 +200,12 @@ class Subscription:
         for entry in feed.get('entries', []):
             should_save = False
             id_ = id_for_entry(entry)
-            episode = self.episode_for_id(id_)
             LOG.debug('Check episode id %r.', id_)
+            try:
+                episode = self.episode_for_id(id_)
+            except NoEpisodeError:
+                episode = None
+
             if episode:
                 pass
             else:
@@ -238,6 +243,8 @@ class Subscription:
         for episode in self.episodes:
             if episode.id == episode_id:
                 return episode
+
+        raise NoEpisodeError('No episode with id %r' % episode_id)
 
     def purge(self, storage, simulate=False):
         '''Delete old episodes, keep only *max_episodes*.
