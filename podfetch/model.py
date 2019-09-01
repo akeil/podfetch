@@ -199,7 +199,7 @@ class Subscription:
         for entry in feed.get('entries', []):
             should_save = False
             id_ = id_for_entry(entry)
-            episode = self._episode_for_id(id_)
+            episode = self.episode_for_id(id_)
             LOG.debug('Check episode id %r.', id_)
             if episode:
                 pass
@@ -233,9 +233,10 @@ class Subscription:
 
         return not has_errors
 
-    def _episode_for_id(self, id_):
+    def episode_for_id(self, episode_id):
+        '''Get an Episode by id.'''
         for episode in self.episodes:
-            if episode.id == id_:
+            if episode.id == episode_id:
                 return episode
 
     def purge(self, storage, simulate=False):
