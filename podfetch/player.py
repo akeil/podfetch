@@ -59,7 +59,7 @@ class CmdPlayer(BasePlayer):
         self._proc = None
 
     def do_play(self, *files, wait=False):
-        args = [self._cmd, ] + files
+        args = [self._cmd, ] + list(files)
         LOG.debug('Exec %r', ' '.join(args))
         self._proc = Popen(
             args,
