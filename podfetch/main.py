@@ -983,14 +983,14 @@ def read_config():
 
     # default config from package
     try:  # py 3.x
-        cfg.readfp(io.TextIOWrapper(
+        cfg.read_file(io.TextIOWrapper(
             resource_stream('podfetch', 'default.conf'))
         )
     except AttributeError:
         # py 2.x - return of resource_stream does not support `readable()`
         #          which is required by TextIOWrapper.
         #          Thus, read all bytes from it an wrap into BytesIO
-        cfg.readfp(io.TextIOWrapper(
+        cfg.read_file(io.TextIOWrapper(
             io.BytesIO(
                 resource_stream('podfetch', 'default.conf').read()
             )
